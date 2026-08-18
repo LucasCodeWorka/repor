@@ -1,0 +1,45 @@
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+frontend/.env.local
+frontend/.env.*.local
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+frontend/next-env.d.ts
+
+# Logs and local runtime output
+*.log
+*.out.log
+*.err.log
+frontend/next-dev.out.log
+frontend/next-dev.err.log
+frontend/dev-server.log
+frontend/dev-server.err.log
+
+# Generated data/export files
+*.csv
+*.xlsx
+*.xls
+
+# OS/editor
+.DS_Store
+Thumbs.db
+nul
+frontend/nul
+.vscode/
+.idea/
+.agents/
+.claude/
+.codex/
