@@ -4,6 +4,8 @@ import type {
   CacheStatus,
   ClassificacaoFiltros,
   ConfigReposicao,
+  DiagnosticoProdutoFiltros,
+  DiagnosticoProdutoRow,
   EvolucaoMensalRow,
   LojaRankingRow,
   MatrizReposicaoRow,
@@ -74,6 +76,21 @@ export const api = {
   getMatrizReposicao(year: number, month?: string, limit?: number, filtros?: ReposicaoFiltros) {
     return request<MatrizReposicaoRow[]>(
       withParams("/api/analise/matriz-reposicao", { year, month, limit, ...filtros }),
+    );
+  },
+
+  getDiagnosticoProduto(filtros: DiagnosticoProdutoFiltros) {
+    return request<DiagnosticoProdutoRow[]>(
+      withParams("/api/analise/diagnostico-produto", {
+        year: filtros.year ?? 2026,
+        mes_inicio: filtros.mes_inicio,
+        mes_fim: filtros.mes_fim,
+        cd_loja: filtros.cd_loja,
+        referencia: filtros.referencia,
+        cor: filtros.cor,
+        tamanho: filtros.tamanho,
+        limit: filtros.limit,
+      }),
     );
   },
 

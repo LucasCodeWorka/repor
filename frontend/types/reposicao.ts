@@ -143,6 +143,47 @@ export type MatrizReposicaoRow = {
   status_reposicao: string;
 };
 
+export type DiagnosticoProdutoRow = {
+  mes: string;
+  cd_loja: number;
+  nome_loja: string;
+  referencia: string;
+  descricao_produto: string;
+  cd_produto: number;
+  cor: string;
+  tamanho: string;
+  curva_completa: string;
+  vendas_3m: number;
+  media_mensal: number;
+  estoque_minimo: number;
+  saldo_inicial: number;
+  necessidade: number;
+  entrada_periodo: number;
+  entrada_atrasada: number;
+  entrada_sem_lote: number;
+  entrada_total: number;
+  entrada_sem_necessidade: number;
+  faltou: number;
+  status_reposicao: string;
+  maior_venda_3m_anterior: number | null;
+  ultimo_mes_com_estoque_anterior: string | null;
+  ultimo_mes_com_necessidade_anterior: string | null;
+  ultimo_mes_com_entrada_anterior: string | null;
+  diagnostico: string;
+  leitura: string;
+};
+
+export type DiagnosticoProdutoFiltros = {
+  year?: number;
+  mes_inicio?: string;
+  mes_fim?: string;
+  cd_loja?: string;
+  referencia?: string;
+  cor?: string;
+  tamanho?: string;
+  limit?: number;
+};
+
 export type SkuSemReposicaoRow = {
   empresa: string;
   referencia: string;

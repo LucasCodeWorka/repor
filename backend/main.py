@@ -1725,6 +1725,141 @@ def matriz_reposicao(
     )
 
 
+@app.get("/api/analise/diagnostico-produto")
+def diagnostico_produto(
+    year: int = Query(default=2026, ge=2020, le=2035),
+    mes_inicio: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    mes_fim: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    cd_loja: int | None = Query(default=None),
+    referencia: str | None = Query(default=None),
+    cor: str | None = Query(default=None),
+    tamanho: str | None = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=5000),
+):
+    table = source_analytic_table()
+    is_cached = table == "cache_reposicao_analitico_classificado"
+    color_expr = "COALESCE(a.cor, '')" if is_cached else "COALESCE(p.ds_cor, '')"
+    size_expr = "COALESCE(a.tamanho, '')" if is_cached else "COALESCE(p.ds_tamanho, '')"
+    grade_join = "" if is_cached else "LEFT JOIN vr_prd_prdgrade p ON p.cd_produto = a.cd_produto"
+
+    filters = ["a.mes LIKE %(year_like)s"]
+    final_filters: list[str] = []
+    params: dict[str, Any] = {"year_like": f"{year}-%", "limit": limit}
+    if mes_inicio:
+        final_filters.append("mes >= %(mes_inicio)s")
+        params["mes_inicio"] = mes_inicio
+    if mes_fim:
+        final_filters.append("mes <= %(mes_fim)s")
+        params["mes_fim"] = mes_fim
+    if cd_loja is not None:
+        filters.append("a.cd_loja = %(cd_loja)s")
+        params["cd_loja"] = cd_loja
+    if referencia:
+        filters.append("a.referencia ILIKE %(referencia)s")
+        params["referencia"] = f"%{referencia.strip()}%"
+    if cor:
+        filters.append(f"{color_expr} ILIKE %(cor)s")
+        params["cor"] = f"%{cor.strip()}%"
+    if tamanho:
+        filters.append(f"{size_expr} ILIKE %(tamanho)s")
+        params["tamanho"] = f"%{tamanho.strip()}%"
+
+    where_sql = " AND ".join(filters)
+    final_where_sql = f"WHERE {' AND '.join(final_filters)}" if final_filters else ""
+    return fetch_all(
+        f"""
+        WITH base AS (
+            SELECT
+                a.mes,
+                a.cd_loja,
+                a.nome_loja,
+                a.referencia,
+                a.descricao_produto,
+                a.cd_produto,
+                {color_expr} AS cor,
+                {size_expr} AS tamanho,
+                a.curva_completa,
+                a.vendas_3m,
+                a.media_mensal,
+                a.estoque_minimo,
+                a.saldo_inicial,
+                a.necessidade,
+                a.entrada_periodo,
+                a.entrada_atrasada,
+                a.entrada_sem_lote,
+                a.entrada_total,
+                CASE WHEN a.necessidade <= 0 THEN a.entrada_total ELSE 0 END AS entrada_sem_necessidade,
+                GREATEST(0, a.necessidade - a.entrada_total) AS faltou,
+                a.status_reposicao
+            FROM {table} a
+            {grade_join}
+            WHERE {where_sql}
+        ),
+        historico AS (
+            SELECT
+                b.*,
+                MAX(COALESCE(b.vendas_3m, 0)) OVER (
+                    PARTITION BY b.cd_loja, b.cd_produto
+                    ORDER BY b.mes
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ) AS maior_venda_3m_anterior,
+                MAX(CASE WHEN COALESCE(b.saldo_inicial, 0) > 0 THEN b.mes END) OVER (
+                    PARTITION BY b.cd_loja, b.cd_produto
+                    ORDER BY b.mes
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ) AS ultimo_mes_com_estoque_anterior,
+                MAX(CASE WHEN COALESCE(b.necessidade, 0) > 0 THEN b.mes END) OVER (
+                    PARTITION BY b.cd_loja, b.cd_produto
+                    ORDER BY b.mes
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ) AS ultimo_mes_com_necessidade_anterior,
+                MAX(CASE WHEN COALESCE(b.entrada_total, 0) > 0 THEN b.mes END) OVER (
+                    PARTITION BY b.cd_loja, b.cd_produto
+                    ORDER BY b.mes
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ) AS ultimo_mes_com_entrada_anterior
+            FROM base b
+        )
+        SELECT
+            *,
+            CASE
+                WHEN necessidade > 0 AND entrada_total >= necessidade THEN 'ATENDIDO'
+                WHEN necessidade > 0 AND entrada_total > 0 THEN 'ATENDIDO PARCIAL'
+                WHEN necessidade > 0 THEN 'TINHA NECESSIDADE E FALTOU'
+                WHEN necessidade <= 0 AND entrada_total > 0 THEN 'ENTROU SEM NECESSIDADE'
+                WHEN necessidade <= 0
+                     AND COALESCE(saldo_inicial, 0) <= 0
+                     AND COALESCE(maior_venda_3m_anterior, 0) > 0
+                    THEN 'POSSIVEL DEMANDA PERDIDA'
+                WHEN necessidade <= 0 AND COALESCE(saldo_inicial, 0) > 0 THEN 'SEM NECESSIDADE COM ESTOQUE'
+                ELSE 'SEM MOVIMENTO'
+            END AS diagnostico,
+            CASE
+                WHEN necessidade > 0 AND entrada_total >= necessidade
+                    THEN 'Havia necessidade e a entrada total atendeu o SKU.'
+                WHEN necessidade > 0 AND entrada_total > 0
+                    THEN 'Havia necessidade, mas a entrada total nao cobriu tudo.'
+                WHEN necessidade > 0
+                    THEN 'Havia necessidade calculada e nao houve entrada suficiente.'
+                WHEN necessidade <= 0 AND entrada_total > 0
+                    THEN 'Nao havia necessidade calculada, mas houve entrada.'
+                WHEN necessidade <= 0
+                     AND COALESCE(saldo_inicial, 0) <= 0
+                     AND COALESCE(maior_venda_3m_anterior, 0) > 0
+                    THEN 'Sem estoque/necessidade agora, mas havia venda historica anterior; pode ter perdido demanda por ruptura.'
+                WHEN necessidade <= 0 AND COALESCE(saldo_inicial, 0) > 0
+                    THEN 'Saldo inicial cobria a regra de estoque minimo.'
+                ELSE 'Sem venda, estoque, necessidade ou entrada no recorte.'
+            END AS leitura
+        FROM historico
+        {final_where_sql}
+        ORDER BY cd_loja, referencia, cor, tamanho, cd_produto, mes
+        LIMIT %(limit)s;
+        """,
+        params,
+    )
+
+
 def processo_reposicao_query(
     table: str,
     is_cached: bool,

@@ -1057,6 +1057,81 @@ tbody tr:hover {
   font-size: 12px;
 }
 
+.diagnosticFilters {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+}
+
+.diagnosticTableWrap {
+  max-height: 650px;
+}
+
+.diagnosticTable {
+  min-width: 1780px;
+  font-size: 11px;
+}
+
+.diagnosticTable th,
+.diagnosticTable td {
+  padding: 7px 8px;
+  font-size: 11px;
+}
+
+.diagnosticTable th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+}
+
+.diagnosticTable th:first-child,
+.diagnosticTable td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: inherit;
+}
+
+.diagnosticTable th:first-child {
+  z-index: 3;
+  background: #f8fafc;
+}
+
+.diagnosticRow {
+  background: #fff;
+}
+
+.diagnosticRow:hover {
+  animation: matrixRowBlink 0.9s ease-in-out infinite;
+}
+
+.textCell {
+  max-width: 280px;
+  text-align: left;
+  white-space: normal;
+}
+
+.textCell strong,
+.textCell em {
+  display: block;
+}
+
+.textCell em {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.statusWarn {
+  color: var(--amber);
+  font-weight: 800;
+}
+
+.statusNeutral {
+  color: var(--gray);
+  font-weight: 800;
+}
+
 .alertGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

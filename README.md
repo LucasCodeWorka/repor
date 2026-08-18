@@ -119,6 +119,59 @@ O filtro `somente_entrada_sem_necessidade=true` precisa afetar todos estes endpo
 - `/api/dashboard/lojas-ranking`
 - `/api/analise/matriz-reposicao`
 
+## Diagnostico por Produto
+
+Tela criada para responder perguntas minuciosas como:
+
+```text
+A loja Dom Luis pediu 4 pecas de cada cor Branco, Preto e Nude no tamanho M.
+Havia necessidade mesmo?
+Entrou sem necessidade?
+Em algum mes anterior teve necessidade e isso se perdeu?
+```
+
+Rota frontend:
+
+```text
+/diagnostico-produto
+```
+
+Endpoint backend:
+
+```text
+GET /api/analise/diagnostico-produto
+```
+
+Filtros:
+
+- `year`
+- `mes_inicio`
+- `mes_fim`
+- `cd_loja`
+- `referencia`
+- `cor`
+- `tamanho`
+- `limit`
+
+O endpoint filtra a exibicao por periodo, mas preserva o historico anterior do ano no calculo para conseguir mostrar:
+
+- `maior_venda_3m_anterior`
+- `ultimo_mes_com_estoque_anterior`
+- `ultimo_mes_com_necessidade_anterior`
+- `ultimo_mes_com_entrada_anterior`
+
+Diagnosticos gerados:
+
+- `ATENDIDO`: havia necessidade e a entrada total cobriu.
+- `ATENDIDO PARCIAL`: havia necessidade, mas a entrada nao cobriu tudo.
+- `TINHA NECESSIDADE E FALTOU`: havia necessidade e faltou peca.
+- `ENTROU SEM NECESSIDADE`: nao havia necessidade calculada, mas entrou produto.
+- `POSSIVEL DEMANDA PERDIDA`: sem necessidade/estoque atual, mas com venda historica anterior.
+- `SEM NECESSIDADE COM ESTOQUE`: saldo inicial cobria a regra.
+- `SEM MOVIMENTO`: sem sinal relevante no recorte.
+
+Essa tela e o caminho correto para diagnosticar referencia/cor/tamanho por loja antes de discutir se um pedido manual fazia sentido.
+
 ## Matriz de Reposicao
 
 Arquivo:
@@ -209,6 +262,7 @@ GET  /api/dashboard/evolucao-mensal
 GET  /api/dashboard/lojas-ranking
 GET  /api/dashboard/alertas
 GET  /api/analise/matriz-reposicao
+GET  /api/analise/diagnostico-produto
 GET  /api/analise/skus-sem-reposicao
 GET  /api/analise/skus-sem-reposicao/resumo
 GET  /api/analise/por-mes/{mes}
@@ -458,4 +512,3 @@ https://github.com/LucasCodeWorka/reporlojas.git
 ```
 
 Como este workspace tinha uma pasta `.git` incompleta, o correto foi reinicializar o Git localmente, criar `.gitignore`, commitar o codigo util e configurar `origin` para o repositorio acima.
-
