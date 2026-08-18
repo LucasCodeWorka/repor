@@ -5,6 +5,7 @@ import type {
   ClassificacaoFiltros,
   ConfigReposicao,
   DiagnosticoProdutoFiltros,
+  DiagnosticoProdutoOpcoes,
   DiagnosticoProdutoRow,
   EvolucaoMensalRow,
   LojaRankingRow,
@@ -55,6 +56,20 @@ function withParams(path: string, params: Record<string, string | number | undef
 export const api = {
   getClassificacaoFiltros() {
     return request<ClassificacaoFiltros>("/api/filtros/classificacoes");
+  },
+
+  getDiagnosticoProdutoOpcoes(filtros?: DiagnosticoProdutoFiltros) {
+    return request<DiagnosticoProdutoOpcoes>(
+      withParams("/api/filtros/diagnostico-produto", {
+        year: filtros?.year ?? 2026,
+        mes_inicio: filtros?.mes_inicio,
+        mes_fim: filtros?.mes_fim,
+        cd_loja: filtros?.cd_loja,
+        referencia: filtros?.referencia,
+        cor: filtros?.cor,
+        tamanho: filtros?.tamanho,
+      }),
+    );
   },
 
   getResumoGeral(year: number, month?: string, filtros?: ReposicaoFiltros) {

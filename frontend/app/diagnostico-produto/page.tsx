@@ -1,19 +1,38 @@
 "use client";
 
 import { AlertTriangle, Microscope, RefreshCw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MetricCard, formatNumber } from "../../components/cards/MetricCard";
 import { PageContainer } from "../../components/layout/PageContainer";
 import { api } from "../../services/api";
-import type { DiagnosticoProdutoFiltros, DiagnosticoProdutoRow } from "../../types/reposicao";
+import type {
+  DiagnosticoProdutoFiltros,
+  DiagnosticoProdutoOpcoes,
+  DiagnosticoProdutoRow,
+} from "../../types/reposicao";
 
 const YEAR = 2026;
+const monthOptions = Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, "0")}`);
+const emptyOpcoes: DiagnosticoProdutoOpcoes = {
+  lojas: [],
+  referencias: [],
+  cores: [],
+  tamanhos: [],
+};
 
 function statusClass(status: string) {
   if (status === "ATENDIDO") return "statusOk";
   if (status === "ATENDIDO PARCIAL" || status === "ENTROU SEM NECESSIDADE") return "statusWarn";
   if (status === "TINHA NECESSIDADE E FALTOU" || status === "POSSIVEL DEMANDA PERDIDA") return "statusPending";
   return "statusNeutral";
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 export default function DiagnosticoProdutoPage() {
@@ -23,8 +42,11 @@ export default function DiagnosticoProdutoPage() {
     mes_fim: "2026-12",
     limit: 1000,
   });
+  const [lojaInput, setLojaInput] = useState("");
+  const [opcoes, setOpcoes] = useState<DiagnosticoProdutoOpcoes>(emptyOpcoes);
   const [rows, setRows] = useState<DiagnosticoProdutoRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingOpcoes, setLoadingOpcoes] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
 
@@ -58,6 +80,33 @@ export default function DiagnosticoProdutoPage() {
     setFiltros((current) => ({ ...current, [key]: value || undefined }));
   }
 
+  function lojaCodigoSelecionado() {
+    if (!lojaInput.trim()) return undefined;
+    const codeMatch = lojaInput.match(/^(\d+)/);
+    if (codeMatch) return codeMatch[1];
+    const normalizedInput = normalizeSearch(lojaInput);
+    const loja = opcoes.lojas.find((item) => normalizeSearch(item.nome_loja).includes(normalizedInput));
+    return loja ? String(loja.cd_loja) : undefined;
+  }
+
+  useEffect(() => {
+    setLoadingOpcoes(true);
+    const timeout = window.setTimeout(() => {
+      api
+        .getDiagnosticoProdutoOpcoes({
+          ...filtros,
+          year: filtros.year ?? YEAR,
+          cd_loja: lojaCodigoSelecionado(),
+        })
+        .then(setOpcoes)
+        .catch(() => setOpcoes(emptyOpcoes))
+        .finally(() => setLoadingOpcoes(false));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.mes_inicio, filtros.mes_fim, filtros.referencia, filtros.cor, filtros.tamanho, lojaInput]);
+
   async function loadData() {
     setLoading(true);
     setError(null);
@@ -66,6 +115,7 @@ export default function DiagnosticoProdutoPage() {
       const data = await api.getDiagnosticoProduto({
         ...filtros,
         year: filtros.year ?? YEAR,
+        cd_loja: lojaCodigoSelecionado(),
         limit: filtros.limit ?? 1000,
       });
       setRows(data);
@@ -106,24 +156,33 @@ export default function DiagnosticoProdutoPage() {
         <div className="filterGrid diagnosticFilters">
           <label>
             Mes inicial
-            <input value={filtros.mes_inicio ?? ""} onChange={(event) => handleChange("mes_inicio", event.target.value)} />
+            <input
+              list="diagnostico-meses"
+              value={filtros.mes_inicio ?? ""}
+              onChange={(event) => handleChange("mes_inicio", event.target.value)}
+            />
           </label>
           <label>
             Mes final
-            <input value={filtros.mes_fim ?? ""} onChange={(event) => handleChange("mes_fim", event.target.value)} />
+            <input
+              list="diagnostico-meses"
+              value={filtros.mes_fim ?? ""}
+              onChange={(event) => handleChange("mes_fim", event.target.value)}
+            />
           </label>
           <label>
             Loja
             <input
-              inputMode="numeric"
-              placeholder="Codigo da loja"
-              value={filtros.cd_loja ?? ""}
-              onChange={(event) => handleChange("cd_loja", event.target.value)}
+              list="diagnostico-lojas"
+              placeholder={loadingOpcoes ? "Carregando lojas..." : "Digite ou selecione a loja"}
+              value={lojaInput}
+              onChange={(event) => setLojaInput(event.target.value)}
             />
           </label>
           <label>
             Referencia
             <input
+              list="diagnostico-referencias"
               placeholder="Ex: 103605"
               value={filtros.referencia ?? ""}
               onChange={(event) => handleChange("referencia", event.target.value)}
@@ -132,6 +191,7 @@ export default function DiagnosticoProdutoPage() {
           <label>
             Cor
             <input
+              list="diagnostico-cores"
               placeholder="Branco, Preto, Nude..."
               value={filtros.cor ?? ""}
               onChange={(event) => handleChange("cor", event.target.value)}
@@ -140,6 +200,7 @@ export default function DiagnosticoProdutoPage() {
           <label>
             Tamanho
             <input
+              list="diagnostico-tamanhos"
               placeholder="M"
               value={filtros.tamanho ?? ""}
               onChange={(event) => handleChange("tamanho", event.target.value)}
@@ -150,6 +211,33 @@ export default function DiagnosticoProdutoPage() {
             Gerar diagnostico
           </button>
         </div>
+        <datalist id="diagnostico-meses">
+          {monthOptions.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <datalist id="diagnostico-lojas">
+          {opcoes.lojas.map((item) => (
+            <option key={item.cd_loja} value={`${item.cd_loja} - ${item.nome_loja}`} />
+          ))}
+        </datalist>
+        <datalist id="diagnostico-referencias">
+          {opcoes.referencias.map((item) => (
+            <option key={item.referencia} value={item.referencia}>
+              {item.descricao_produto}
+            </option>
+          ))}
+        </datalist>
+        <datalist id="diagnostico-cores">
+          {opcoes.cores.map((item) => (
+            <option key={item.valor} value={item.valor} />
+          ))}
+        </datalist>
+        <datalist id="diagnostico-tamanhos">
+          {opcoes.tamanhos.map((item) => (
+            <option key={item.valor} value={item.valor} />
+          ))}
+        </datalist>
       </section>
 
       {loading ? <section className="loadingBand">Gerando diagnostico...</section> : null}

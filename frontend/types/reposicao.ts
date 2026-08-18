@@ -184,6 +184,27 @@ export type DiagnosticoProdutoFiltros = {
   limit?: number;
 };
 
+export type DiagnosticoProdutoOpcoes = {
+  lojas: Array<{
+    cd_loja: number;
+    nome_loja: string;
+    qtd_registros: number;
+  }>;
+  referencias: Array<{
+    referencia: string;
+    descricao_produto: string;
+    qtd_skus: number;
+  }>;
+  cores: Array<{
+    valor: string;
+    qtd_registros: number;
+  }>;
+  tamanhos: Array<{
+    valor: string;
+    qtd_registros: number;
+  }>;
+};
+
 export type SkuSemReposicaoRow = {
   empresa: string;
   referencia: string;

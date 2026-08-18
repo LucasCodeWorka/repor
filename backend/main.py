@@ -1407,6 +1407,109 @@ def filtros_classificacoes():
     return result
 
 
+@app.get("/api/filtros/diagnostico-produto")
+def filtros_diagnostico_produto(
+    year: int = Query(default=2026, ge=2020, le=2035),
+    mes_inicio: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    mes_fim: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    cd_loja: int | None = Query(default=None),
+    referencia: str | None = Query(default=None),
+    cor: str | None = Query(default=None),
+    tamanho: str | None = Query(default=None),
+):
+    table = source_analytic_table()
+    is_cached = table == "cache_reposicao_analitico_classificado"
+    color_expr = "COALESCE(a.cor, '')" if is_cached else "COALESCE(p.ds_cor, '')"
+    size_expr = "COALESCE(a.tamanho, '')" if is_cached else "COALESCE(p.ds_tamanho, '')"
+    grade_join = "" if is_cached else "LEFT JOIN vr_prd_prdgrade p ON p.cd_produto = a.cd_produto"
+    filters = ["a.mes LIKE %(year_like)s"]
+    params: dict[str, Any] = {"year_like": f"{year}-%"}
+    if mes_inicio:
+        filters.append("a.mes >= %(mes_inicio)s")
+        params["mes_inicio"] = mes_inicio
+    if mes_fim:
+        filters.append("a.mes <= %(mes_fim)s")
+        params["mes_fim"] = mes_fim
+    if cd_loja is not None:
+        filters.append("a.cd_loja = %(cd_loja)s")
+        params["cd_loja"] = cd_loja
+    if referencia:
+        filters.append("a.referencia ILIKE %(referencia)s")
+        params["referencia"] = f"%{referencia.strip()}%"
+    if cor:
+        filters.append(f"{color_expr} ILIKE %(cor)s")
+        params["cor"] = f"%{cor.strip()}%"
+    if tamanho:
+        filters.append(f"{size_expr} ILIKE %(tamanho)s")
+        params["tamanho"] = f"%{tamanho.strip()}%"
+    where_sql = " AND ".join(filters)
+
+    lojas = fetch_all(
+        f"""
+        SELECT
+            a.cd_loja,
+            MAX(a.nome_loja) AS nome_loja,
+            COUNT(*) AS qtd_registros
+        FROM {table} a
+        {grade_join}
+        WHERE {where_sql}
+        GROUP BY a.cd_loja
+        ORDER BY MAX(a.nome_loja), a.cd_loja;
+        """,
+        params,
+    )
+    referencias = fetch_all(
+        f"""
+        SELECT
+            a.referencia,
+            MAX(a.descricao_produto) AS descricao_produto,
+            COUNT(DISTINCT a.cd_produto) AS qtd_skus
+        FROM {table} a
+        {grade_join}
+        WHERE {where_sql}
+          AND COALESCE(a.referencia, '') <> ''
+        GROUP BY a.referencia
+        ORDER BY a.referencia
+        LIMIT 5000;
+        """,
+        params,
+    )
+    cores = fetch_all(
+        f"""
+        SELECT
+            {color_expr} AS valor,
+            COUNT(*) AS qtd_registros
+        FROM {table} a
+        {grade_join}
+        WHERE {where_sql}
+          AND {color_expr} <> ''
+        GROUP BY {color_expr}
+        ORDER BY {color_expr};
+        """,
+        params,
+    )
+    tamanhos = fetch_all(
+        f"""
+        SELECT
+            {size_expr} AS valor,
+            COUNT(*) AS qtd_registros
+        FROM {table} a
+        {grade_join}
+        WHERE {where_sql}
+          AND {size_expr} <> ''
+        GROUP BY {size_expr}
+        ORDER BY {size_expr};
+        """,
+        params,
+    )
+    return {
+        "lojas": lojas,
+        "referencias": referencias,
+        "cores": cores,
+        "tamanhos": tamanhos,
+    }
+
+
 @app.post("/api/cache/atualizar")
 def atualizar_cache():
     return refresh_cache()

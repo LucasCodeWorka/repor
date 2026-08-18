@@ -153,6 +153,8 @@ Filtros:
 - `tamanho`
 - `limit`
 
+No frontend, os filtros dessa tela sao pesquisaveis e selecionaveis. A loja aparece pelo nome, no formato `codigo - nome`, e o codigo e enviado para a API por tras. As opcoes tambem sao dependentes do recorte: ao escolher loja e referencia, as listas de cor e tamanho passam a mostrar somente combinacoes existentes na base, evitando procurar SKU que nao existe.
+
 O endpoint filtra a exibicao por periodo, mas preserva o historico anterior do ano no calculo para conseguir mostrar:
 
 - `maior_venda_3m_anterior`
