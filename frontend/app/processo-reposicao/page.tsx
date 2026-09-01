@@ -846,104 +846,84 @@ export default function ProcessoReposicaoPage() {
       </section>
 
       <section className="panel filterPanel">
-        <div className="filterGroups">
-          <div className="filterGroup">
-            <div className="filterGroupTitle">
-              <Store size={14} />
-              Periodo
-            </div>
-            <div className="filterGrid">
-              <label>
-                Mes de analise
-                <select
-                  value={month}
-                  onChange={(event) => {
-                    const nextMonth = event.target.value;
-                    setMonth(nextMonth);
-                    loadData(nextMonth, filtros);
-                  }}
-                >
-                  {MONTH_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div className="filterGroup">
-            <div className="filterGroupTitle">
-              <Tag size={14} />
-              Classificacao
-            </div>
-            <div className="filterGrid">
-              <label>
-                Status
-                <select
-                  value={filtros.status_produto ?? ""}
-                  onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
-                >
-                  <option value="">Todos</option>
-                  {classificacoes.status_produto.map((item) => (
-                    <option key={item.valor} value={item.valor}>
-                      {item.valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Continuidade
-                <select
-                  value={filtros.continuidade ?? ""}
-                  onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
-                >
-                  <option value="">Todas</option>
-                  {classificacoes.continuidade.map((item) => (
-                    <option key={item.valor} value={item.valor}>
-                      {item.valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Linha
-                <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
-                  <option value="">Todas</option>
-                  {classificacoes.linha.map((item) => (
-                    <option key={item.valor} value={item.valor}>
-                      {item.valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Familia
-                <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
-                  <option value="">Todas</option>
-                  {classificacoes.familia.map((item) => (
-                    <option key={item.valor} value={item.valor}>
-                      {item.valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div className="filterGroup">
-            <button
-              type="button"
-              onClick={() => {
-                setFiltros({});
-                loadData(month, {});
+        <div className="filterGrid">
+          <label>
+            <span>Periodo</span>
+            <select
+              value={month}
+              onChange={(event) => {
+                const nextMonth = event.target.value;
+                setMonth(nextMonth);
+                loadData(nextMonth, filtros);
               }}
-              disabled={loading}
             >
-              Limpar filtros
-            </button>
-          </div>
+              {MONTH_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Status do produto</span>
+            <select
+              value={filtros.status_produto ?? ""}
+              onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
+            >
+              <option value="">Todos</option>
+              {classificacoes.status_produto.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Continuidade</span>
+            <select
+              value={filtros.continuidade ?? ""}
+              onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
+            >
+              <option value="">Todas</option>
+              {classificacoes.continuidade.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Linha</span>
+            <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
+              <option value="">Todas</option>
+              {classificacoes.linha.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Familia</span>
+            <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
+              <option value="">Todas</option>
+              {classificacoes.familia.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setFiltros({});
+              loadData(month, {});
+            }}
+            disabled={loading}
+          >
+            Limpar filtros
+          </button>
         </div>
       </section>
 
