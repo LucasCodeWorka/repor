@@ -225,10 +225,106 @@ function CalculationTooltip({ memory }: { memory: CalculationMemory }) {
   );
 }
 
+function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory; row: PedidoReposicaoRow; onClose: () => void }) {
+  return (
+    <div className="modalBackdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <section className="modalPanel calcModal" onClick={(e) => e.stopPropagation()}>
+        <div className="panelHeader">
+          <div>
+            <h2>Calculo de Reposicao</h2>
+            <p>
+              {row.referencia} · {row.cor} / {row.tamanho} · SKU {row.cd_produto}
+            </p>
+          </div>
+          <button type="button" className="iconButton" onClick={onClose} aria-label="Fechar">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="calcModalContent">
+          <div className="calcStepCard">
+            <div className="calcStepHeader">
+              <span className="calcStepNumber">1</span>
+              <strong>Base do Calculo</strong>
+            </div>
+            <div className="calcStepBody">
+              <div className="calcRow"><span>Media mensal</span><strong>{formatDecimal(memory.media)}</strong></div>
+              <div className="calcRow"><span>Curva do produto</span><strong>{memory.curva || "-"}</strong></div>
+              <div className="calcRow"><span>Multiplicador da curva</span><strong>× {formatDecimal(memory.multiplicador)}</strong></div>
+              <div className="calcFormula">
+                <code>Estoque Minimo = Media × Multiplicador = {formatDecimal(memory.media)} × {formatDecimal(memory.multiplicador)} = {formatNumber(memory.estMin)}</code>
+              </div>
+              <div className="calcResult">
+                <span>Estoque minimo calculado</span>
+                <strong className="highlight-amber">{formatNumber(memory.estMin)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="calcStepCard">
+            <div className="calcStepHeader">
+              <span className="calcStepNumber">2</span>
+              <strong>Necessidade</strong>
+            </div>
+            <div className="calcStepBody">
+              <div className="calcRow"><span>Estoque minimo</span><strong className="highlight-amber">{formatNumber(memory.estMin)}</strong></div>
+              <div className="calcRow"><span>Saldo inicial</span><strong>{formatNumber(memory.saldo)}</strong></div>
+              <div className="calcFormula">
+                <code>Necessidade = max(0, Est.Min - Saldo) = max(0, {formatNumber(memory.estMin)} - {formatNumber(memory.saldo)}) = {formatNumber(memory.nec)}</code>
+              </div>
+              <div className="calcResult">
+                <span>Necessidade calculada</span>
+                <strong className="highlight-pink">{formatNumber(memory.nec)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="calcStepCard">
+            <div className="calcStepHeader">
+              <span className="calcStepNumber">3</span>
+              <strong>Falta Bruta</strong>
+            </div>
+            <div className="calcStepBody">
+              <div className="calcRow"><span>Necessidade</span><strong className="highlight-pink">{formatNumber(memory.nec)}</strong></div>
+              <div className="calcRow"><span>Entrada total</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
+              <div className="calcFormula">
+                <code>Falta Bruta = max(0, Nec - Entrada) = max(0, {formatNumber(memory.nec)} - {formatNumber(memory.ent)}) = {formatNumber(memory.faltaBruta)}</code>
+              </div>
+              <div className="calcResult">
+                <span>Falta bruta</span>
+                <strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="calcStepCard">
+            <div className="calcStepHeader">
+              <span className="calcStepNumber">4</span>
+              <strong>Deducoes</strong>
+            </div>
+            <div className="calcStepBody">
+              <div className="calcRow"><span>Pendente pedido</span><strong>{formatNumber(memory.pendPedido)}</strong></div>
+              <div className="calcRow"><span>Em transito</span><strong>{formatNumber(memory.transito)}</strong></div>
+              <div className="calcRow"><span>Ja programado</span><strong>{formatNumber(memory.jaProg)}</strong></div>
+              <div className="calcFormula">
+                <code>Pedido = max(0, Falta - JaProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
+              </div>
+              <div className="calcResult final">
+                <span>Pedido Final</span>
+                <strong className="highlight-green">{formatNumber(memory.pedido)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
   const [expandedEmpresas, setExpandedEmpresas] = useState<Set<string>>(new Set());
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
-  const [hoveredSku, setHoveredSku] = useState<string | null>(null);
+  const [selectedCalculation, setSelectedCalculation] = useState<{ memory: CalculationMemory; row: PedidoReposicaoRow } | null>(null);
 
   const totalPecas = pedido.rows.reduce((acc, row) => acc + Number(row.qtd_pedido || 0), 0);
   const totalSkus = pedido.rows.length;
@@ -411,20 +507,17 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                                     Number(item.media_mensal || 0),
                                   );
                                   const skuKey = `${item.mes}-${item.cd_loja}-${item.cd_produto}`;
-                                  const isHovered = hoveredSku === skuKey;
                                   return (
                                   <tr
-                                    className={`matrixSku ${isHovered ? "hovered" : ""}`}
+                                    className="matrixSku clickableRow"
                                     key={skuKey}
-                                    onMouseEnter={() => setHoveredSku(skuKey)}
-                                    onMouseLeave={() => setHoveredSku(null)}
+                                    onClick={() => setSelectedCalculation({ memory, row: item })}
                                   >
                                     <td className="skuCell">
                                       <span className="skuLabel">
                                         <strong>{item.cor || "SEM COR"} / {item.tamanho || "SEM TAM."}</strong>
                                         <em>SKU {item.cd_produto} · {item.linha ?? "-"}</em>
                                       </span>
-                                      {isHovered && <CalculationTooltip memory={memory} />}
                                     </td>
                                     <td>1</td>
                                     <td className="highlight-result">{formatNumber(item.qtd_pedido)}</td>
@@ -458,6 +551,13 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
           </tbody>
         </table>
       </div>
+      {selectedCalculation ? (
+        <CalculationModal
+          memory={selectedCalculation.memory}
+          row={selectedCalculation.row}
+          onClose={() => setSelectedCalculation(null)}
+        />
+      ) : null}
     </section>
   );
 }
