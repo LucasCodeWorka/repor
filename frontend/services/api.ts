@@ -10,6 +10,7 @@ import type {
   EvolucaoMensalRow,
   LojaRankingRow,
   MatrizReposicaoRow,
+  Media12mImpacto,
   ProcessoReposicaoResumo,
   ProcessoReposicaoRow,
   ReposicaoDashboard,
@@ -45,10 +46,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function withParams(path: string, params: Record<string, string | number | undefined>) {
+function withParams(path: string, params: Record<string, string | number | string[] | undefined>) {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) searchParams.set(key, String(value));
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        if (value.length > 0) searchParams.set(key, value.join(","));
+      } else {
+        searchParams.set(key, String(value));
+      }
+    }
   });
   return `${path}?${searchParams.toString()}`;
 }
@@ -133,6 +140,12 @@ export const api = {
     );
   },
 
+  getMedia12mImpacto(year: number, month?: string, limit = 1000, filtros?: ReposicaoFiltros) {
+    return request<Media12mImpacto>(
+      withParams("/api/analise/media-12m-impacto", { year, month, limit, ...filtros }),
+    );
+  },
+
   getTotvsConfigStatus() {
     return request<TotvsConfigStatus>("/api/totvs/config-status");
   },
@@ -141,6 +154,7 @@ export const api = {
     year: number;
     month: string;
     pedido_tipo: "CURVA_A_AA" | "CURVA_BC_1" | "CURVA_BC_2";
+    cenario?: "media3m" | "media6m" | "media12m" | "atual" | "consideravel12m" | "semRuptura12m";
     filtros?: ReposicaoFiltros;
     test_item?: boolean;
   }) {
@@ -154,6 +168,7 @@ export const api = {
     year: number;
     month: string;
     pedido_tipo: "CURVA_A_AA" | "CURVA_BC_1" | "CURVA_BC_2";
+    cenario?: "media3m" | "media6m" | "media12m" | "atual" | "consideravel12m" | "semRuptura12m";
     filtros?: ReposicaoFiltros;
     test_item?: boolean;
     cd_loja?: number;

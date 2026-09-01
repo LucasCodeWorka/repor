@@ -1,5 +1,6 @@
 import json
 import os
+import hashlib
 from contextlib import contextmanager
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,7 +13,7 @@ from dotenv import load_dotenv
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.totvs_moda import (
+from totvs_moda import (
     TotvsModaClient,
     TotvsModaError,
     build_order_payload,
@@ -81,6 +82,90 @@ def fetch_all(query: str, params: dict[str, Any] | None = None) -> list[dict[str
 def fetch_one(query: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
     rows = fetch_all(query, params)
     return rows[0] if rows else None
+
+
+def painel_cache_key(page: str, params: dict[str, Any]) -> tuple[str, str]:
+    normalized = json.dumps(params, sort_keys=True, default=str, ensure_ascii=False)
+    digest = hashlib.sha256(f"{page}:{normalized}".encode("utf-8")).hexdigest()
+    return digest, normalized
+
+
+PAINEL_CACHE_SCHEMA_READY = False
+
+
+def ensure_painel_cache_schema() -> None:
+    global PAINEL_CACHE_SCHEMA_READY
+    if PAINEL_CACHE_SCHEMA_READY:
+        return
+    execute_transaction(
+        [
+            (
+                """
+                CREATE TABLE IF NOT EXISTS painel_payload_cache (
+                    cache_key VARCHAR(64) PRIMARY KEY,
+                    pagina VARCHAR(80) NOT NULL,
+                    parametros JSONB NOT NULL,
+                    payload JSONB NOT NULL,
+                    cache_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                    criado_em TIMESTAMP DEFAULT NOW(),
+                    atualizado_em TIMESTAMP DEFAULT NOW()
+                );
+                """,
+                None,
+            ),
+            (
+                """
+                CREATE INDEX IF NOT EXISTS idx_painel_payload_cache_pagina_data
+                    ON painel_payload_cache (pagina, cache_date);
+                """,
+                None,
+            ),
+        ]
+    )
+    PAINEL_CACHE_SCHEMA_READY = True
+
+
+def get_painel_cache(page: str, params: dict[str, Any]) -> Any | None:
+    ensure_painel_cache_schema()
+    cache_key, _ = painel_cache_key(page, params)
+    row = fetch_one(
+        """
+        SELECT payload
+        FROM painel_payload_cache
+        WHERE cache_key = %(cache_key)s
+          AND cache_date = CURRENT_DATE;
+        """,
+        {"cache_key": cache_key},
+    )
+    return row["payload"] if row else None
+
+
+def set_painel_cache(page: str, params: dict[str, Any], payload: Any) -> Any:
+    ensure_painel_cache_schema()
+    cache_key, normalized = painel_cache_key(page, params)
+    execute_transaction(
+        [
+            (
+                """
+                INSERT INTO painel_payload_cache (cache_key, pagina, parametros, payload, cache_date, atualizado_em)
+                VALUES (%(cache_key)s, %(pagina)s, %(parametros)s::jsonb, %(payload)s::jsonb, CURRENT_DATE, NOW())
+                ON CONFLICT (cache_key) DO UPDATE SET
+                    pagina = EXCLUDED.pagina,
+                    parametros = EXCLUDED.parametros,
+                    payload = EXCLUDED.payload,
+                    cache_date = CURRENT_DATE,
+                    atualizado_em = NOW();
+                """,
+                {
+                    "cache_key": cache_key,
+                    "pagina": page,
+                    "parametros": normalized,
+                    "payload": json.dumps(payload, default=str, ensure_ascii=False),
+                },
+            )
+        ]
+    )
+    return payload
 
 
 def execute_transaction(
@@ -1434,14 +1519,41 @@ def filtros_diagnostico_produto(
         filters.append("a.cd_loja = %(cd_loja)s")
         params["cd_loja"] = cd_loja
     if referencia:
-        filters.append("a.referencia ILIKE %(referencia)s")
-        params["referencia"] = f"%{referencia.strip()}%"
+        refs = [r.strip() for r in referencia.split(",") if r.strip()]
+        if len(refs) == 1:
+            filters.append("a.referencia = %(referencia)s")
+            params["referencia"] = refs[0]
+        elif refs:
+            ref_conditions = []
+            for i, ref in enumerate(refs):
+                param_name = f"referencia_{i}"
+                ref_conditions.append(f"a.referencia = %({param_name})s")
+                params[param_name] = ref
+            filters.append(f"({' OR '.join(ref_conditions)})")
     if cor:
-        filters.append(f"{color_expr} ILIKE %(cor)s")
-        params["cor"] = f"%{cor.strip()}%"
+        cores = [c.strip().upper() for c in cor.split(",") if c.strip()]
+        if len(cores) == 1:
+            filters.append(f"UPPER({color_expr}) = %(cor)s")
+            params["cor"] = cores[0]
+        elif cores:
+            cor_conditions = []
+            for i, c in enumerate(cores):
+                param_name = f"cor_{i}"
+                cor_conditions.append(f"UPPER({color_expr}) = %({param_name})s")
+                params[param_name] = c
+            filters.append(f"({' OR '.join(cor_conditions)})")
     if tamanho:
-        filters.append(f"{size_expr} ILIKE %(tamanho)s")
-        params["tamanho"] = f"%{tamanho.strip()}%"
+        tamanhos = [t.strip().upper() for t in tamanho.split(",") if t.strip()]
+        if len(tamanhos) == 1:
+            filters.append(f"UPPER({size_expr}) = %(tamanho)s")
+            params["tamanho"] = tamanhos[0]
+        elif tamanhos:
+            tam_conditions = []
+            for i, t in enumerate(tamanhos):
+                param_name = f"tamanho_{i}"
+                tam_conditions.append(f"UPPER({size_expr}) = %({param_name})s")
+                params[param_name] = t
+            filters.append(f"({' OR '.join(tam_conditions)})")
     where_sql = " AND ".join(filters)
 
     lojas = fetch_all(
@@ -1525,11 +1637,92 @@ def atualizar_cache_mes(mes: str):
 @app.get("/api/cache/status")
 def cache_status():
     ensure_cache_schema()
+    ensure_painel_cache_schema()
     meta = ultima_atualizacao()
+    painel = fetch_all(
+        """
+        SELECT
+            pagina,
+            cache_date,
+            COUNT(*) AS entradas,
+            MAX(atualizado_em) AS ultima_atualizacao
+        FROM painel_payload_cache
+        GROUP BY pagina, cache_date
+        ORDER BY cache_date DESC, pagina;
+        """
+    )
     status = CACHE_STATUS["status"]
     if status == "nunca_atualizado" and meta and meta.get("atualizado_em"):
         status = "ok"
-    return {**CACHE_STATUS, "status": status, "cache": meta}
+    return {**CACHE_STATUS, "status": status, "cache": meta, "painel_payload_cache": painel}
+
+
+@app.post("/api/cache/painel/limpar")
+def limpar_cache_painel(payload: dict[str, Any] = Body(default={})):
+    ensure_painel_cache_schema()
+    pagina = payload.get("pagina")
+    if pagina:
+        execute_transaction(
+            [
+                (
+                    "DELETE FROM painel_payload_cache WHERE pagina = %(pagina)s;",
+                    {"pagina": str(pagina)},
+                )
+            ]
+        )
+        return {"ok": True, "pagina": pagina}
+    execute_transaction([("DELETE FROM painel_payload_cache;", None)])
+    return {"ok": True, "pagina": "todas"}
+
+
+@app.post("/api/cache/painel/aquecer")
+def aquecer_cache_painel(payload: dict[str, Any] = Body(default={})):
+    month = str(payload.get("month") or payload.get("mes") or "2026-08")
+    year = int(payload.get("year") or month[:4] or 2026)
+    limit = int(payload.get("limit") or 10000)
+    incluir_media_12m = bool(payload.get("incluir_media_12m", True))
+
+    if len(month) != 7 or month[4] != "-":
+        raise HTTPException(status_code=422, detail="month deve estar no formato YYYY-MM.")
+
+    processo_resumo = processo_reposicao_resumo(
+        year=year,
+        month=month,
+        status_produto=None,
+        continuidade=None,
+        linha=None,
+        familia=None,
+    )
+    processo_sugestao = processo_reposicao_sugestao(
+        year=year,
+        month=month,
+        limit=limit,
+        status_produto=None,
+        continuidade=None,
+        linha=None,
+        familia=None,
+    )
+    resultado: dict[str, Any] = {
+        "ok": True,
+        "month": month,
+        "year": year,
+        "processo_resumo": processo_resumo,
+        "processo_sugestao_linhas": len(processo_sugestao),
+    }
+
+    if incluir_media_12m:
+        media_12m = analise_media_12m_impacto(
+            year=year,
+            month=month,
+            limit=min(limit, 10000),
+            status_produto=None,
+            continuidade=None,
+            linha=None,
+            familia=None,
+        )
+        resultado["media_12m_linhas"] = len(media_12m.get("rows", []))
+
+    return resultado
 
 
 @app.get("/api/dashboard/resumo-geral")
@@ -1839,84 +2032,108 @@ def diagnostico_produto(
     tamanho: str | None = Query(default=None),
     limit: int = Query(default=500, ge=1, le=5000),
 ):
+    # Precisa de pelo menos referência ou loja para não trazer dados demais
+    if not referencia and cd_loja is None:
+        raise HTTPException(status_code=400, detail="Selecione pelo menos uma referencia ou loja.")
+
     table = source_analytic_table()
-    is_cached = table == "cache_reposicao_analitico_classificado"
-    color_expr = "COALESCE(a.cor, '')" if is_cached else "COALESCE(p.ds_cor, '')"
-    size_expr = "COALESCE(a.tamanho, '')" if is_cached else "COALESCE(p.ds_tamanho, '')"
-    grade_join = "" if is_cached else "LEFT JOIN vr_prd_prdgrade p ON p.cd_produto = a.cd_produto"
 
-    filters = ["a.mes LIKE %(year_like)s"]
-    final_filters: list[str] = []
-    params: dict[str, Any] = {"year_like": f"{year}-%", "limit": limit}
-    if mes_inicio:
-        final_filters.append("mes >= %(mes_inicio)s")
-        params["mes_inicio"] = mes_inicio
-    if mes_fim:
-        final_filters.append("mes <= %(mes_fim)s")
-        params["mes_fim"] = mes_fim
+    params: dict[str, Any] = {
+        "year_like": f"{year}-%",
+        "limit": limit,
+        "mes_inicio": mes_inicio or f"{year}-01",
+        "mes_fim": mes_fim or f"{year}-12",
+    }
+
+    # Filtro completo para a query principal
+    where_clauses = ["mes LIKE %(year_like)s", "mes >= %(mes_inicio)s", "mes <= %(mes_fim)s"]
+
     if cd_loja is not None:
-        filters.append("a.cd_loja = %(cd_loja)s")
+        where_clauses.append("cd_loja = %(cd_loja)s")
         params["cd_loja"] = cd_loja
-    if referencia:
-        filters.append("a.referencia ILIKE %(referencia)s")
-        params["referencia"] = f"%{referencia.strip()}%"
-    if cor:
-        filters.append(f"{color_expr} ILIKE %(cor)s")
-        params["cor"] = f"%{cor.strip()}%"
-    if tamanho:
-        filters.append(f"{size_expr} ILIKE %(tamanho)s")
-        params["tamanho"] = f"%{tamanho.strip()}%"
 
-    where_sql = " AND ".join(filters)
-    final_where_sql = f"WHERE {' AND '.join(final_filters)}" if final_filters else ""
+    if referencia:
+        refs = [r.strip() for r in referencia.split(",") if r.strip()]
+        if len(refs) == 1:
+            where_clauses.append("referencia = %(referencia)s")
+            params["referencia"] = refs[0]
+        elif refs:
+            ref_conds = " OR ".join([f"referencia = %(referencia_{i})s" for i in range(len(refs))])
+            where_clauses.append(f"({ref_conds})")
+            for i, ref in enumerate(refs):
+                params[f"referencia_{i}"] = ref
+
+    if cor:
+        cores = [c.strip().upper() for c in cor.split(",") if c.strip()]
+        if len(cores) == 1:
+            where_clauses.append("UPPER(COALESCE(cor, '')) = %(cor)s")
+            params["cor"] = cores[0]
+        elif cores:
+            cor_conds = " OR ".join([f"UPPER(COALESCE(cor, '')) = %(cor_{i})s" for i in range(len(cores))])
+            where_clauses.append(f"({cor_conds})")
+            for i, c in enumerate(cores):
+                params[f"cor_{i}"] = c
+
+    if tamanho:
+        tamanhos_list = [t.strip().upper() for t in tamanho.split(",") if t.strip()]
+        if len(tamanhos_list) == 1:
+            where_clauses.append("UPPER(COALESCE(tamanho, '')) = %(tamanho)s")
+            params["tamanho"] = tamanhos_list[0]
+        elif tamanhos_list:
+            tam_conds = " OR ".join([f"UPPER(COALESCE(tamanho, '')) = %(tamanho_{i})s" for i in range(len(tamanhos_list))])
+            where_clauses.append(f"({tam_conds})")
+            for i, t in enumerate(tamanhos_list):
+                params[f"tamanho_{i}"] = t
+
+    where_sql = " AND ".join(where_clauses)
+
     return fetch_all(
         f"""
         WITH base AS (
             SELECT
-                a.mes,
-                a.cd_loja,
-                a.nome_loja,
-                a.referencia,
-                a.descricao_produto,
-                a.cd_produto,
-                {color_expr} AS cor,
-                {size_expr} AS tamanho,
-                a.curva_completa,
-                a.vendas_3m,
-                a.media_mensal,
-                a.estoque_minimo,
-                a.saldo_inicial,
-                a.necessidade,
-                a.entrada_periodo,
-                a.entrada_atrasada,
-                a.entrada_sem_lote,
-                a.entrada_total,
-                CASE WHEN a.necessidade <= 0 THEN a.entrada_total ELSE 0 END AS entrada_sem_necessidade,
-                GREATEST(0, a.necessidade - a.entrada_total) AS faltou,
-                a.status_reposicao
-            FROM {table} a
-            {grade_join}
+                mes,
+                cd_loja,
+                nome_loja,
+                referencia,
+                descricao_produto,
+                cd_produto,
+                COALESCE(cor, '') AS cor,
+                COALESCE(tamanho, '') AS tamanho,
+                COALESCE(curva_completa, '') AS curva_completa,
+                COALESCE(vendas_3m, 0) AS vendas_3m,
+                COALESCE(media_mensal, 0) AS media_mensal,
+                COALESCE(estoque_minimo, 0) AS estoque_minimo,
+                COALESCE(saldo_inicial, 0) AS saldo_inicial,
+                COALESCE(necessidade, 0) AS necessidade,
+                COALESCE(entrada_periodo, 0) AS entrada_periodo,
+                COALESCE(entrada_atrasada, 0) AS entrada_atrasada,
+                COALESCE(entrada_sem_lote, 0) AS entrada_sem_lote,
+                COALESCE(entrada_total, 0) AS entrada_total,
+                CASE WHEN COALESCE(necessidade, 0) <= 0 THEN COALESCE(entrada_total, 0) ELSE 0 END AS entrada_sem_necessidade,
+                GREATEST(0, COALESCE(necessidade, 0) - COALESCE(entrada_total, 0)) AS faltou,
+                COALESCE(status_reposicao, '') AS status_reposicao
+            FROM {table}
             WHERE {where_sql}
         ),
         historico AS (
             SELECT
                 b.*,
-                MAX(COALESCE(b.vendas_3m, 0)) OVER (
+                MAX(b.vendas_3m) OVER (
                     PARTITION BY b.cd_loja, b.cd_produto
                     ORDER BY b.mes
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ) AS maior_venda_3m_anterior,
-                MAX(CASE WHEN COALESCE(b.saldo_inicial, 0) > 0 THEN b.mes END) OVER (
+                MAX(CASE WHEN b.saldo_inicial > 0 THEN b.mes END) OVER (
                     PARTITION BY b.cd_loja, b.cd_produto
                     ORDER BY b.mes
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ) AS ultimo_mes_com_estoque_anterior,
-                MAX(CASE WHEN COALESCE(b.necessidade, 0) > 0 THEN b.mes END) OVER (
+                MAX(CASE WHEN b.necessidade > 0 THEN b.mes END) OVER (
                     PARTITION BY b.cd_loja, b.cd_produto
                     ORDER BY b.mes
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ) AS ultimo_mes_com_necessidade_anterior,
-                MAX(CASE WHEN COALESCE(b.entrada_total, 0) > 0 THEN b.mes END) OVER (
+                MAX(CASE WHEN b.entrada_total > 0 THEN b.mes END) OVER (
                     PARTITION BY b.cd_loja, b.cd_produto
                     ORDER BY b.mes
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
@@ -1931,11 +2148,11 @@ def diagnostico_produto(
                 WHEN necessidade > 0 THEN 'TINHA NECESSIDADE E FALTOU'
                 WHEN necessidade <= 0 AND entrada_total > 0 THEN 'ENTROU SEM NECESSIDADE'
                 WHEN necessidade <= 0
-                     AND COALESCE(saldo_inicial, 0) <= 0
+                     AND saldo_inicial <= 0
                      AND COALESCE(maior_venda_3m_anterior, 0) > 0
                     THEN 'POSSIVEL DEMANDA PERDIDA'
-                WHEN necessidade <= 0 AND COALESCE(saldo_inicial, 0) > 0 THEN 'SEM NECESSIDADE COM ESTOQUE'
-                ELSE 'SEM MOVIMENTO'
+                WHEN necessidade <= 0 AND saldo_inicial > 0 THEN 'SEM NECESSIDADE COM ESTOQUE'
+                ELSE 'SEM DADOS'
             END AS diagnostico,
             CASE
                 WHEN necessidade > 0 AND entrada_total >= necessidade
@@ -1947,15 +2164,14 @@ def diagnostico_produto(
                 WHEN necessidade <= 0 AND entrada_total > 0
                     THEN 'Nao havia necessidade calculada, mas houve entrada.'
                 WHEN necessidade <= 0
-                     AND COALESCE(saldo_inicial, 0) <= 0
+                     AND saldo_inicial <= 0
                      AND COALESCE(maior_venda_3m_anterior, 0) > 0
                     THEN 'Sem estoque/necessidade agora, mas havia venda historica anterior; pode ter perdido demanda por ruptura.'
-                WHEN necessidade <= 0 AND COALESCE(saldo_inicial, 0) > 0
+                WHEN necessidade <= 0 AND saldo_inicial > 0
                     THEN 'Saldo inicial cobria a regra de estoque minimo.'
-                ELSE 'Sem venda, estoque, necessidade ou entrada no recorte.'
+                ELSE 'SKU sem movimentacao relevante no periodo.'
             END AS leitura
         FROM historico
-        {final_where_sql}
         ORDER BY cd_loja, referencia, cor, tamanho, cd_produto, mes
         LIMIT %(limit)s;
         """,
@@ -2053,17 +2269,139 @@ def processo_reposicao_query(
                 a.cd_produto,
                 {classification_fields}
                 MAX(a.curva_completa) AS curva_completa,
-                SUM(a.media_mensal) AS media_mensal,
+                COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)) AS media_mensal,
+                MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0)) AS media_6m_sem_abr_mai,
+                MAX(COALESCE(m_calc.media_12m_consideravel, 0)) AS media_12m_consideravel,
+                MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0)) AS media_12m_sem_ruptura,
                 SUM(a.saldo_inicial) AS saldo_inicial,
-                SUM(a.necessidade) AS necessidade,
+                ROUND(
+                    COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                    * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo,
+                GREATEST(
+                    0,
+                    ROUND(
+                        COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial)
+                ) AS necessidade,
                 SUM(a.entrada_total) AS entrada_total,
-                SUM(GREATEST(0, a.necessidade - a.entrada_total)) AS qtd_sugerida_bruta,
+                GREATEST(
+                    0,
+                    GREATEST(
+                        0,
+                        ROUND(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) - SUM(a.entrada_total)
+                ) AS qtd_sugerida_bruta,
                 MAX(COALESCE(pp.qtd_pendente_pedido, 0)) AS qtd_pendente_pedido,
                 0::numeric AS qtd_transito,
                 MAX(COALESCE(pp.qtd_pendente_pedido, 0)) AS qtd_ja_programada,
+                ROUND(
+                    GREATEST(
+                        COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                        MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0))
+                    )
+                    * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo_6m,
                 GREATEST(
                     0,
-                    SUM(GREATEST(0, a.necessidade - a.entrada_total))
+                    ROUND(
+                        GREATEST(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                            MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0))
+                        )
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial)
+                ) AS necessidade_6m,
+                GREATEST(
+                    0,
+                    GREATEST(
+                        0,
+                        ROUND(
+                            GREATEST(
+                                COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                                MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0))
+                            )
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                ) AS qtd_sugerida_6m,
+                ROUND(
+                    GREATEST(
+                        COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                        MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                    )
+                    * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo_12m,
+                GREATEST(
+                    0,
+                    ROUND(
+                        GREATEST(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                            MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                        )
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial)
+                ) AS necessidade_12m,
+                GREATEST(
+                    0,
+                    GREATEST(
+                        0,
+                        ROUND(
+                            GREATEST(
+                                COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                                MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                            )
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                ) AS qtd_sugerida_12m,
+                ROUND(
+                    MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
+                    * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo_sem_ruptura,
+                GREATEST(
+                    0,
+                    ROUND(
+                        MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial)
+                ) AS necessidade_sem_ruptura,
+                GREATEST(
+                    0,
+                    GREATEST(
+                        0,
+                        ROUND(
+                            MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                ) AS qtd_sugerida_sem_ruptura,
+                GREATEST(
+                    0,
+                    GREATEST(
+                        0,
+                        ROUND(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) - SUM(a.entrada_total)
                     - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
                 ) AS qtd_sugerida,
                 MAX(COALESCE(dp.prcpfabrica, 0)) AS original_price,
@@ -2081,8 +2419,22 @@ def processo_reposicao_query(
                 NULL::integer AS shipping_company_code,
                 NULL::text AS freight_type,
                 CASE
-                    WHEN SUM(a.necessidade) <= 0 THEN 'SEM NECESSIDADE'
-                    WHEN SUM(a.entrada_total) >= SUM(a.necessidade) THEN 'OK'
+                    WHEN GREATEST(
+                        0,
+                        ROUND(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) <= 0 THEN 'SEM NECESSIDADE'
+                    WHEN SUM(a.entrada_total) >= GREATEST(
+                        0,
+                        ROUND(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                            0
+                        ) - SUM(a.saldo_inicial)
+                    ) THEN 'OK'
                     WHEN SUM(a.entrada_total) > 0 THEN 'PARCIAL'
                     ELSE 'ZERADO'
                 END AS status_reposicao
@@ -2092,6 +2444,67 @@ def processo_reposicao_query(
             LEFT JOIN pedidos_pendentes pp
                 ON pp.cd_loja = a.cd_loja
                AND pp.cd_produto = a.cd_produto
+            LEFT JOIN public.media_venda_12m_consideravel m
+                ON m.cd_loja = a.cd_loja
+               AND m.cd_produto = a.cd_produto
+            LEFT JOIN LATERAL (
+                WITH meses AS (
+                    SELECT
+                        detalhe->>'mes' AS mes,
+                        COALESCE((detalhe->>'venda_mes')::numeric, 0) AS venda_mes,
+                        COALESCE((detalhe->>'venda_mes_bruta')::numeric, 0) AS venda_mes_bruta,
+                        (
+                            (COALESCE((detalhe->>'saldo_inicio_mes')::numeric, 0) + COALESCE((detalhe->>'entrada_mes_bruta')::numeric, 0)) > 0
+                            AND COALESCE((detalhe->>'venda_mes_bruta')::numeric, 0) >= (
+                                COALESCE((detalhe->>'saldo_inicio_mes')::numeric, 0) + COALESCE((detalhe->>'entrada_mes_bruta')::numeric, 0)
+                            )
+                        ) AS zerou_estoque_no_mes
+                    FROM jsonb_array_elements(COALESCE(m.detalhe_meses::jsonb, '[]'::jsonb)) AS detalhe
+                    WHERE COALESCE((detalhe->>'considerado')::boolean, false)
+                      AND to_date(detalhe->>'mes', 'YYYY-MM') < to_date(%(month)s, 'YYYY-MM')
+                )
+                SELECT
+                    CASE
+                        WHEN COUNT(*) FILTER (
+                            WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '3 months'
+                        ) > 0
+                            THEN ROUND(
+                                COALESCE(SUM(venda_mes) FILTER (
+                                    WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '3 months'
+                                ), 0)
+                                / COUNT(*) FILTER (
+                                    WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '3 months'
+                                ),
+                                2
+                            )
+                        ELSE 0
+                    END AS media_3m,
+                    CASE
+                        WHEN COUNT(*) FILTER (
+                            WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '6 months'
+                              AND EXTRACT(MONTH FROM to_date(mes, 'YYYY-MM')) NOT IN (4, 5)
+                        ) > 0
+                            THEN ROUND(
+                                COALESCE(SUM(venda_mes) FILTER (
+                                    WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '6 months'
+                                      AND EXTRACT(MONTH FROM to_date(mes, 'YYYY-MM')) NOT IN (4, 5)
+                                ), 0)
+                                / COUNT(*) FILTER (
+                                    WHERE to_date(mes, 'YYYY-MM') >= to_date(%(month)s, 'YYYY-MM') - INTERVAL '6 months'
+                                      AND EXTRACT(MONTH FROM to_date(mes, 'YYYY-MM')) NOT IN (4, 5)
+                                ),
+                                2
+                            )
+                        ELSE 0
+                    END AS media_6m_sem_abr_mai,
+                    CASE WHEN COUNT(*) > 0 THEN ROUND(COALESCE(SUM(venda_mes), 0) / COUNT(*), 2) ELSE 0 END AS media_12m_consideravel,
+                    CASE
+                        WHEN COUNT(*) FILTER (WHERE NOT zerou_estoque_no_mes) > 0
+                            THEN ROUND(COALESCE(SUM(venda_mes_bruta) FILTER (WHERE NOT zerou_estoque_no_mes), 0) / COUNT(*) FILTER (WHERE NOT zerou_estoque_no_mes), 2)
+                        ELSE 0
+                    END AS media_12m_sem_ruptura
+                FROM meses
+            ) m_calc ON TRUE
             {where}
               {product_filter_sql}
             GROUP BY
@@ -2107,8 +2520,9 @@ def processo_reposicao_query(
                     ELSE 'NORMAL'
                 END AS prioridade
             FROM base
-            WHERE necessidade > 0
-              AND qtd_sugerida > 0
+            WHERE (necessidade > 0 AND qtd_sugerida > 0)
+               OR qtd_sugerida_12m > 0
+               OR qtd_sugerida_sem_ruptura > 0
         )
         {select_sql}
         {order_limit_sql}
@@ -2126,6 +2540,18 @@ def processo_reposicao_resumo(
 ):
     if not month:
         month = date.today().strftime("%Y-%m")
+    cache_params = {
+        "version": "processo_resumo_v4_media_protegida",
+        "year": year,
+        "month": month,
+        "status_produto": status_produto,
+        "continuidade": continuidade,
+        "linha": linha,
+        "familia": familia,
+    }
+    cached = get_painel_cache("processo_reposicao_resumo", cache_params)
+    if cached is not None:
+        return cached
     table = source_analytic_table()
     is_cached = table == "cache_reposicao_analitico_classificado"
     filter_builder = product_classification_column_filter_sql if is_cached else product_classification_filter_sql
@@ -2153,7 +2579,7 @@ def processo_reposicao_resumo(
         FROM sugestao
         """,
     )
-    return fetch_one(query, params) or {
+    payload = fetch_one(query, params) or {
         "skus_sugeridos": 0,
         "lojas": 0,
         "pecas_sugeridas": 0,
@@ -2163,6 +2589,7 @@ def processo_reposicao_resumo(
         "altos": 0,
         "normais": 0,
     }
+    return set_painel_cache("processo_reposicao_resumo", cache_params, payload)
 
 
 @app.get("/api/processo-reposicao/sugestao")
@@ -2177,6 +2604,19 @@ def processo_reposicao_sugestao(
 ):
     if not month:
         month = date.today().strftime("%Y-%m")
+    cache_params = {
+        "version": "processo_sugestao_v4_media_protegida",
+        "year": year,
+        "month": month,
+        "limit": limit,
+        "status_produto": status_produto,
+        "continuidade": continuidade,
+        "linha": linha,
+        "familia": familia,
+    }
+    cached = get_painel_cache("processo_reposicao_sugestao", cache_params)
+    if cached is not None:
+        return cached
     table = source_analytic_table()
     is_cached = table == "cache_reposicao_analitico_classificado"
     filter_builder = product_classification_column_filter_sql if is_cached else product_classification_filter_sql
@@ -2207,13 +2647,26 @@ def processo_reposicao_sugestao(
             tamanho,
             curva_completa,
             media_mensal,
+            media_6m_sem_abr_mai,
+            media_12m_consideravel,
+            media_12m_sem_ruptura,
+            estoque_minimo,
+            estoque_minimo_6m,
             saldo_inicial,
             necessidade,
+            necessidade_6m,
+            necessidade_12m,
+            necessidade_sem_ruptura,
             entrada_total,
             qtd_sugerida_bruta,
             qtd_pendente_pedido,
             qtd_transito,
             qtd_ja_programada,
+            qtd_sugerida_6m,
+            estoque_minimo_12m,
+            estoque_minimo_sem_ruptura,
+            qtd_sugerida_12m,
+            qtd_sugerida_sem_ruptura,
             qtd_sugerida,
             original_price,
             price,
@@ -2239,7 +2692,459 @@ def processo_reposicao_sugestao(
         LIMIT %(limit)s;
         """,
     )
-    return fetch_all(query, params)
+    payload = fetch_all(query, params)
+    return set_painel_cache("processo_reposicao_sugestao", cache_params, payload)
+
+
+def analise_media_12m_query(
+    table: str,
+    is_cached: bool,
+    product_filter_sql: str,
+    where: str,
+    select_sql: str,
+    order_limit_sql: str = "",
+) -> str:
+    classification_fields = (
+        """
+            MAX(a.status_produto) AS status_produto,
+            MAX(a.continuidade) AS continuidade,
+            MAX(a.linha) AS linha,
+            MAX(a.familia) AS familia,
+            COALESCE(a.cor, '') AS cor,
+            COALESCE(a.tamanho, '') AS tamanho,
+        """
+        if is_cached
+        else """
+            MAX(cls.status_produto) AS status_produto,
+            MAX(cls.continuidade) AS continuidade,
+            MAX(cls.linha) AS linha,
+            MAX(cls.familia) AS familia,
+            COALESCE(p.ds_cor, '') AS cor,
+            COALESCE(p.ds_tamanho, '') AS tamanho,
+        """
+    )
+    classification_join = (
+        ""
+        if is_cached
+        else f"""
+        LEFT JOIN vr_prd_prdgrade p
+            ON p.cd_produto = a.cd_produto
+        LEFT JOIN LATERAL (
+            SELECT
+                {product_classification_select("a")}
+        ) cls ON TRUE
+        """
+    )
+    classification_group = "a.cor, a.tamanho" if is_cached else "p.ds_cor, p.ds_tamanho"
+    return f"""
+        WITH base AS (
+            SELECT
+                a.mes,
+                a.cd_loja,
+                a.nome_loja,
+                a.referencia,
+                a.descricao_produto,
+                a.cd_produto,
+                {classification_fields}
+                MAX(a.curva_completa) AS curva_completa,
+                SUM(COALESCE(a.vendas_3m, 0)) AS vendas_3m,
+                SUM(COALESCE(a.media_mensal, 0)) AS media_antiga_3m,
+                MAX(COALESCE(m_calc.media_nova_12m, 0)) AS media_nova_12m,
+                MAX(COALESCE(m_calc.media_bruta_12m, 0)) AS media_bruta_12m,
+                MAX(COALESCE(m_calc.media_sem_ruptura_12m, 0)) AS media_sem_ruptura_12m,
+                MAX(COALESCE(m_calc.venda_12m_considerada, 0)) AS venda_12m_considerada,
+                MAX(COALESCE(m_calc.entrada_12m_considerada, 0)) AS entrada_12m_considerada,
+                MAX(COALESCE(m_calc.venda_12m_sem_ruptura, 0)) AS venda_12m_sem_ruptura,
+                MAX(COALESCE(m_calc.entrada_12m_sem_ruptura, 0)) AS entrada_12m_sem_ruptura,
+                MAX(COALESCE(m_calc.meses_considerados, 0)) AS meses_considerados,
+                MAX(COALESCE(m_calc.meses_considerados_sem_ruptura, 0)) AS meses_considerados_sem_ruptura,
+                MAX(m_calc.meses_utilizados_media) AS meses_utilizados_media,
+                MAX(m_calc.valores_utilizados_media) AS valores_utilizados_media,
+                MAX(m_calc.formula_media_nova) AS formula_media_nova,
+                MAX(m_calc.meses_utilizados_media_sem_ruptura) AS meses_utilizados_media_sem_ruptura,
+                MAX(m_calc.valores_utilizados_media_sem_ruptura) AS valores_utilizados_media_sem_ruptura,
+                MAX(m_calc.formula_media_sem_ruptura) AS formula_media_sem_ruptura,
+                MAX(m_calc.meses_excluidos_media_sem_ruptura) AS meses_excluidos_media_sem_ruptura,
+                MAX(m_calc.explicacao_media_12m) AS explicacao_media_12m,
+                MAX(m_calc.explicacao_media_sem_ruptura) AS explicacao_media_sem_ruptura,
+                SUM(COALESCE(a.estoque_minimo, 0)) AS estoque_minimo_antigo,
+                SUM(COALESCE(a.saldo_inicial, 0)) AS saldo_inicial,
+                SUM(COALESCE(a.necessidade, 0)) AS necessidade_antiga,
+                SUM(COALESCE(a.entrada_total, 0)) AS entrada_total,
+                MAX(COALESCE(e.estoque_bruto, 0)) AS estoque_disponivel_cd
+            FROM {table} a
+            {classification_join}
+            LEFT JOIN public.media_venda_12m_consideravel m
+                ON m.cd_loja = a.cd_loja
+               AND m.cd_produto = a.cd_produto
+            LEFT JOIN LATERAL (
+                WITH meses_filtrados AS (
+                    SELECT
+                        detalhe->>'mes' AS mes,
+                        COALESCE((detalhe->>'venda_mes')::numeric, 0) AS venda_mes,
+                        COALESCE((detalhe->>'entrada_mes')::numeric, 0) AS entrada_mes,
+                        COALESCE((detalhe->>'venda_mes_bruta')::numeric, 0) AS venda_mes_bruta,
+                        COALESCE((detalhe->>'entrada_mes_bruta')::numeric, 0) AS entrada_mes_bruta,
+                        COALESCE((detalhe->>'saldo_inicio_mes')::numeric, 0) AS saldo_inicio_mes,
+                        (
+                            (COALESCE((detalhe->>'saldo_inicio_mes')::numeric, 0) + COALESCE((detalhe->>'entrada_mes_bruta')::numeric, 0)) > 0
+                            AND COALESCE((detalhe->>'venda_mes_bruta')::numeric, 0) >= (
+                                COALESCE((detalhe->>'saldo_inicio_mes')::numeric, 0) + COALESCE((detalhe->>'entrada_mes_bruta')::numeric, 0)
+                            )
+                        ) AS zerou_estoque_no_mes
+                    FROM jsonb_array_elements(COALESCE(m.detalhe_meses::jsonb, '[]'::jsonb)) AS detalhe
+                    WHERE COALESCE((detalhe->>'considerado')::boolean, false)
+                      AND to_date(detalhe->>'mes', 'YYYY-MM') < to_date(%(month)s, 'YYYY-MM')
+                ),
+                agregado AS (
+                    SELECT
+                        COUNT(*) AS meses_considerados,
+                        COUNT(*) FILTER (WHERE NOT zerou_estoque_no_mes) AS meses_considerados_sem_ruptura,
+                        COALESCE(SUM(venda_mes), 0) AS venda_12m_considerada,
+                        COALESCE(SUM(entrada_mes), 0) AS entrada_12m_considerada,
+                        COALESCE(SUM(venda_mes_bruta) FILTER (WHERE NOT zerou_estoque_no_mes), 0) AS venda_12m_sem_ruptura,
+                        COALESCE(SUM(entrada_mes_bruta) FILTER (WHERE NOT zerou_estoque_no_mes), 0) AS entrada_12m_sem_ruptura,
+                        STRING_AGG(mes, ', ' ORDER BY mes) AS meses_utilizados_media,
+                        STRING_AGG(TRIM(TO_CHAR(venda_mes, 'FM999999990.##')), ' + ' ORDER BY mes) AS valores_utilizados_media,
+                        STRING_AGG(mes, ', ' ORDER BY mes) FILTER (WHERE NOT zerou_estoque_no_mes) AS meses_utilizados_media_sem_ruptura,
+                        STRING_AGG(TRIM(TO_CHAR(venda_mes_bruta, 'FM999999990.##')), ' + ' ORDER BY mes) FILTER (WHERE NOT zerou_estoque_no_mes) AS valores_utilizados_media_sem_ruptura,
+                        STRING_AGG(
+                            mes || ' (venda ' || TRIM(TO_CHAR(venda_mes_bruta, 'FM999999990.##')) ||
+                            ' >= estoque disponivel ' ||
+                            TRIM(TO_CHAR(saldo_inicio_mes + entrada_mes_bruta, 'FM999999990.##')) || ')',
+                            ', '
+                            ORDER BY mes
+                        ) FILTER (WHERE zerou_estoque_no_mes) AS meses_excluidos_media_sem_ruptura
+                    FROM meses_filtrados
+                )
+                SELECT
+                    meses_considerados,
+                    meses_considerados_sem_ruptura,
+                    venda_12m_considerada,
+                    entrada_12m_considerada,
+                    venda_12m_sem_ruptura,
+                    entrada_12m_sem_ruptura,
+                    CASE
+                        WHEN meses_considerados > 0 THEN ROUND(venda_12m_considerada / meses_considerados, 2)
+                        ELSE 0
+                    END AS media_nova_12m,
+                    CASE
+                        WHEN meses_considerados > 0 THEN ROUND(venda_12m_considerada / meses_considerados, 2)
+                        ELSE 0
+                    END AS media_bruta_12m,
+                    CASE
+                        WHEN meses_considerados_sem_ruptura > 0 THEN ROUND(venda_12m_sem_ruptura / meses_considerados_sem_ruptura, 2)
+                        ELSE 0
+                    END AS media_sem_ruptura_12m,
+                    meses_utilizados_media,
+                    valores_utilizados_media,
+                    CASE
+                        WHEN meses_considerados > 0 THEN '(' || valores_utilizados_media || ') / ' || meses_considerados
+                        ELSE NULL
+                    END AS formula_media_nova,
+                    meses_utilizados_media_sem_ruptura,
+                    valores_utilizados_media_sem_ruptura,
+                    CASE
+                        WHEN meses_considerados_sem_ruptura > 0 THEN '(' || valores_utilizados_media_sem_ruptura || ') / ' || meses_considerados_sem_ruptura
+                        ELSE NULL
+                    END AS formula_media_sem_ruptura,
+                    meses_excluidos_media_sem_ruptura,
+                    CASE
+                        WHEN meses_considerados > 0
+                            THEN 'Regra base: entram os meses com estoque inicial, entrada ou venda considerados pela media 12m.'
+                        ELSE 'Regra base: nenhum mes entrou porque nao houve mes consideravel antes do periodo selecionado.'
+                    END AS explicacao_media_12m,
+                    CASE
+                        WHEN meses_considerados_sem_ruptura > 0 AND meses_excluidos_media_sem_ruptura IS NOT NULL
+                            THEN 'Regra sem ruptura: parte da media 12m e remove meses em que venda do mes consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
+                        WHEN meses_considerados_sem_ruptura > 0
+                            THEN 'Regra sem ruptura: nenhum mes da media 12m foi removido, porque a venda ficou abaixo do estoque disponivel em todos os meses usados.'
+                        WHEN meses_excluidos_media_sem_ruptura IS NOT NULL
+                            THEN 'Regra sem ruptura: todos os meses da media 12m foram removidos porque a venda consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
+                        ELSE 'Regra sem ruptura: nao houve mes consideravel para calcular.'
+                    END AS explicacao_media_sem_ruptura
+                FROM agregado
+            ) m_calc ON TRUE
+            LEFT JOIN public.mv_pcp_estoque_atual e
+                ON e.cd_produto = a.cd_produto
+            {where}
+              {product_filter_sql}
+            GROUP BY
+                a.mes, a.cd_loja, a.nome_loja, a.referencia, a.descricao_produto,
+                a.cd_produto, {classification_group}
+        ),
+        calculado AS (
+            SELECT
+                *,
+                CASE
+                    WHEN curva_completa IN ('CURVA A', 'CURVA AA') THEN 1.5
+                    ELSE 1.0
+                END AS multiplicador_curva,
+                ROUND(
+                    COALESCE(media_nova_12m, 0)
+                    * CASE WHEN curva_completa IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo_12m
+            FROM base
+        ),
+        gaps AS (
+            SELECT
+                *,
+                GREATEST(0, COALESCE(media_nova_12m, 0) - COALESCE(media_antiga_3m, 0)) AS gap_media,
+                GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0)) AS necessidade_12m,
+                GREATEST(
+                    0,
+                    GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0))
+                    - COALESCE(necessidade_antiga, 0)
+                ) AS gap_necessidade,
+                CASE
+                    WHEN COALESCE(media_nova_12m, 0) <= 0 THEN 'SEM DEMANDA 12M'
+                    WHEN COALESCE(necessidade_antiga, 0) <= 0
+                         AND GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0)) > 0
+                        THEN 'RUPTURA SILENCIOSA'
+                    WHEN COALESCE(media_nova_12m, 0) > COALESCE(media_antiga_3m, 0) * 1.25
+                         AND GREATEST(
+                             0,
+                             GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0))
+                             - COALESCE(necessidade_antiga, 0)
+                         ) > 0
+                        THEN 'SUBESTIMADO'
+                    WHEN COALESCE(necessidade_antiga, 0) > 0 THEN 'REGRA ATUAL PEGA'
+                    ELSE 'SEM ACAO'
+                END AS diagnostico
+            FROM calculado
+        ),
+        sku_capacidade AS (
+            SELECT
+                cd_produto,
+                MAX(estoque_disponivel_cd) AS estoque_disponivel_cd_sku,
+                SUM(gap_necessidade) AS gap_necessidade_sku,
+                LEAST(MAX(estoque_disponivel_cd), SUM(gap_necessidade)) AS qtd_recuperavel_sku,
+                GREATEST(0, SUM(gap_necessidade) - MAX(estoque_disponivel_cd)) AS deficit_pos_estoque_sku
+            FROM gaps
+            WHERE gap_necessidade > 0
+            GROUP BY cd_produto
+        ),
+        final AS (
+            SELECT
+                g.*,
+                COALESCE(s.qtd_recuperavel_sku, 0) AS qtd_recuperavel_sku,
+                COALESCE(s.deficit_pos_estoque_sku, 0) AS deficit_pos_estoque_sku,
+                CASE
+                    WHEN COALESCE(g.gap_necessidade, 0) <= 0 THEN 0
+                    WHEN COALESCE(s.gap_necessidade_sku, 0) <= 0 THEN 0
+                    ELSE ROUND(
+                        COALESCE(s.qtd_recuperavel_sku, 0)
+                        * COALESCE(g.gap_necessidade, 0)
+                        / NULLIF(s.gap_necessidade_sku, 0),
+                        2
+                    )
+                END AS qtd_recuperavel_rateada,
+                CASE
+                    WHEN COALESCE(g.media_nova_12m, 0) <= 0 THEN 0
+                    ELSE ROUND((COALESCE(g.saldo_inicial, 0) + COALESCE(g.estoque_disponivel_cd, 0)) / NULLIF(g.media_nova_12m, 0), 2)
+                END AS cobertura_potencial_meses
+            FROM gaps g
+            LEFT JOIN sku_capacidade s
+                ON s.cd_produto = g.cd_produto
+        )
+        {select_sql}
+        {order_limit_sql}
+    """
+
+
+@app.get("/api/analise/media-12m-impacto")
+def analise_media_12m_impacto(
+    year: int = Query(default=2026, ge=2020, le=2035),
+    month: str | None = Query(default="2026-08", pattern=r"^\d{4}-\d{2}$"),
+    limit: int = Query(default=1000, ge=1, le=10000),
+    status_produto: str | None = Query(default=None),
+    continuidade: str | None = Query(default=None),
+    linha: str | None = Query(default=None),
+    familia: str | None = Query(default=None),
+):
+    if not relation_exists("public.media_venda_12m_consideravel"):
+        raise HTTPException(status_code=404, detail="Tabela media_venda_12m_consideravel ainda nao existe.")
+    if not relation_exists("public.mv_pcp_estoque_atual"):
+        raise HTTPException(status_code=404, detail="View mv_pcp_estoque_atual ainda nao existe.")
+    cache_params = {
+        "version": "media_12m_impacto_v3",
+        "year": year,
+        "month": month,
+        "limit": limit,
+        "status_produto": status_produto,
+        "continuidade": continuidade,
+        "linha": linha,
+        "familia": familia,
+    }
+    cached = get_painel_cache("media_12m_impacto", cache_params)
+    if cached is not None:
+        return cached
+
+    table = source_analytic_table()
+    is_cached = table == "cache_reposicao_analitico_classificado"
+    filter_builder = product_classification_column_filter_sql if is_cached else product_classification_filter_sql
+    product_filter_sql, filter_params = filter_builder(
+        "a", status_produto=status_produto, continuidade=continuidade, linha=linha, familia=familia
+    )
+    params: dict[str, Any] = {"month": month, "limit": limit}
+    params.update(filter_params)
+    common = (table, is_cached, product_filter_sql, "WHERE a.mes = %(month)s")
+    resumo_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            COUNT(*) AS skus_analisados,
+            COUNT(DISTINCT cd_loja) AS lojas,
+            COUNT(DISTINCT referencia) AS referencias,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COUNT(*) FILTER (WHERE diagnostico = 'SUBESTIMADO') AS subestimados,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(media_sem_ruptura_12m), 0) AS media_sem_ruptura_total,
+            COALESCE((SELECT SUM(estoque_disponivel_cd_sku) FROM sku_capacidade), 0) AS estoque_cd_skus_gap,
+            COALESCE((SELECT SUM(qtd_recuperavel_sku) FROM sku_capacidade), 0) AS qtd_recuperavel,
+            COALESCE((SELECT SUM(deficit_pos_estoque_sku) FROM sku_capacidade), 0) AS deficit_pos_estoque
+        FROM final
+        """,
+    )
+    por_loja_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            cd_loja,
+            nome_loja,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(media_sem_ruptura_12m), 0) AS media_sem_ruptura_total
+        FROM final
+        GROUP BY cd_loja, nome_loja
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY gap_pecas DESC LIMIT 20",
+    )
+    por_referencia_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            referencia,
+            MAX(descricao_produto) AS descricao_produto,
+            COUNT(DISTINCT cd_loja) AS lojas,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(media_sem_ruptura_12m), 0) AS media_sem_ruptura_total
+        FROM final
+        GROUP BY referencia
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY gap_pecas DESC LIMIT 30",
+    )
+    por_curva_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            COALESCE(curva_completa, '') AS curva_completa,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel
+        FROM final
+        GROUP BY curva_completa
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY gap_pecas DESC",
+    )
+    rows_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            f.*,
+            v3_calc.meses_utilizados_media_3m,
+            v3_calc.valores_utilizados_media_3m,
+            v3_calc.formula_media_antiga_3m
+        FROM final f
+        LEFT JOIN LATERAL (
+            WITH meses_3m AS (
+                SELECT generate_series(
+                    date_trunc('month', to_date(%(month)s, 'YYYY-MM')) - INTERVAL '3 months',
+                    date_trunc('month', to_date(%(month)s, 'YYYY-MM')) - INTERVAL '1 month',
+                    INTERVAL '1 month'
+                )::date AS inicio_mes
+            ),
+            vendas_mes AS (
+                SELECT
+                    to_char(m3.inicio_mes, 'YYYY-MM') AS mes,
+                    COALESCE(v.venda_mes, 0) AS venda_mes
+                FROM meses_3m m3
+                LEFT JOIN LATERAL (
+                    SELECT
+                        SUM(
+                            i.qt_solicitada *
+                            CASE WHEN t.tp_modalidade::text = '3' THEN -1 ELSE 1 END
+                        ) AS venda_mes
+                    FROM vr_tra_transacao t
+                    JOIN vr_tra_transitem i
+                        ON t.nr_transacao = i.nr_transacao
+                        AND t.cd_empresa = i.cd_empresa
+                    WHERE t.cd_empresa = f.cd_loja
+                      AND i.cd_produto = f.cd_produto
+                      AND t.cd_empresa > 1
+                      AND t.cd_empresa <> 4
+                      AND t.cd_operacao NOT IN (
+                          140, 76, 25, 26, 27, 273, 44,
+                          240, 241, 242, 243, 244, 245,
+                          239, 238, 237, 236
+                      )
+                      AND i.dt_transacao >= m3.inicio_mes
+                      AND i.dt_transacao < m3.inicio_mes + INTERVAL '1 month'
+                      AND i.cd_compvend <> 1
+                      AND t.tp_situacao <> 6
+                      AND t.tp_modalidade::text IN ('3', '4')
+                ) v ON TRUE
+            ),
+            agregado AS (
+                SELECT
+                    STRING_AGG(mes, ', ' ORDER BY mes) AS meses_utilizados_media_3m,
+                    STRING_AGG(TRIM(TO_CHAR(venda_mes, 'FM999999990.##')), ' + ' ORDER BY mes) AS valores_utilizados_media_3m
+                FROM vendas_mes
+            )
+            SELECT
+                meses_utilizados_media_3m,
+                valores_utilizados_media_3m,
+                '(' || valores_utilizados_media_3m || ') / 3' AS formula_media_antiga_3m
+            FROM agregado
+        ) v3_calc ON TRUE
+        WHERE f.gap_necessidade > 0 OR f.diagnostico IN ('RUPTURA SILENCIOSA', 'SUBESTIMADO')
+        """,
+        """
+        ORDER BY
+            CASE diagnostico WHEN 'RUPTURA SILENCIOSA' THEN 0 WHEN 'SUBESTIMADO' THEN 1 ELSE 2 END,
+            gap_necessidade DESC,
+            nome_loja,
+            referencia,
+            cor,
+            tamanho
+        LIMIT %(limit)s
+        """,
+    )
+    payload = {
+        "resumo": fetch_one(resumo_query, params),
+        "por_loja": fetch_all(por_loja_query, params),
+        "por_referencia": fetch_all(por_referencia_query, params),
+        "por_curva": fetch_all(por_curva_query, params),
+        "rows": fetch_all(rows_query, params),
+    }
+    return set_painel_cache("media_12m_impacto", cache_params, payload)
 
 
 def _is_curva_a_aa(curva: str) -> bool:
@@ -2255,6 +3160,7 @@ def processo_reposicao_rows_for_order(
     year: int,
     month: str,
     pedido_tipo: str,
+    cenario: str = "atual",
     filtros: dict[str, Any],
 ) -> list[dict[str, Any]]:
     table = source_analytic_table()
@@ -2290,14 +3196,27 @@ def processo_reposicao_rows_for_order(
             tamanho,
             curva_completa,
             media_mensal,
+            media_6m_sem_abr_mai,
+            media_12m_consideravel,
+            media_12m_sem_ruptura,
+            estoque_minimo,
+            estoque_minimo_6m,
+            estoque_minimo_12m,
+            estoque_minimo_sem_ruptura,
             saldo_inicial,
             necessidade,
+            necessidade_6m,
+            necessidade_12m,
+            necessidade_sem_ruptura,
             entrada_total,
             qtd_sugerida_bruta,
             qtd_pendente_pedido,
             qtd_transito,
             qtd_ja_programada,
             qtd_sugerida,
+            qtd_sugerida_6m,
+            qtd_sugerida_12m,
+            qtd_sugerida_sem_ruptura,
             original_price,
             price,
             discount_percentage,
@@ -2325,9 +3244,47 @@ def processo_reposicao_rows_for_order(
     rows = fetch_all(query, params)
     pedido_tipo_normalizado = pedido_tipo.strip().upper()
     selected: list[dict[str, Any]] = []
+    cenario_normalizado = cenario.strip()
+    if cenario_normalizado not in ("media3m", "media6m", "media12m", "atual", "consideravel12m", "semRuptura12m"):
+        raise HTTPException(status_code=422, detail="cenario invalido.")
     for row in rows:
         curva = str(row.get("curva_completa") or "")
-        qtd = float(row.get("qtd_sugerida") or 0)
+        if cenario_normalizado == "media12m" or cenario_normalizado == "consideravel12m":
+            row["media_mensal"] = max(
+                float(row.get("media_mensal") or 0),
+                float(row.get("media_12m_consideravel") or 0),
+            )
+            row["estoque_minimo"] = row.get("estoque_minimo_12m") or 0
+            row["necessidade"] = row.get("necessidade_12m") or 0
+            row["qtd_sugerida_bruta"] = max(
+                0,
+                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
+            )
+            qtd = float(row.get("qtd_sugerida_12m") or 0)
+        elif cenario_normalizado == "media6m":
+            row["media_mensal"] = max(
+                float(row.get("media_mensal") or 0),
+                float(row.get("media_6m_sem_abr_mai") or 0),
+            )
+            row["estoque_minimo"] = row.get("estoque_minimo_6m") or 0
+            row["necessidade"] = row.get("necessidade_6m") or 0
+            row["qtd_sugerida_bruta"] = max(
+                0,
+                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
+            )
+            qtd = float(row.get("qtd_sugerida_6m") or 0)
+        elif cenario_normalizado == "semRuptura12m":
+            row["media_mensal"] = row.get("media_12m_sem_ruptura") or 0
+            row["estoque_minimo"] = row.get("estoque_minimo_sem_ruptura") or 0
+            row["necessidade"] = row.get("necessidade_sem_ruptura") or 0
+            row["qtd_sugerida_bruta"] = max(
+                0,
+                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
+            )
+            qtd = float(row.get("qtd_sugerida_sem_ruptura") or 0)
+        else:
+            qtd = float(row.get("qtd_sugerida") or 0)
+        row["qtd_sugerida"] = qtd
         if pedido_tipo_normalizado == "CURVA_A_AA" and _is_curva_a_aa(curva):
             row["qtd_pedido"] = qtd
         elif pedido_tipo_normalizado == "CURVA_BC_1" and _is_curva_b_c(curva):
@@ -2411,13 +3368,15 @@ def processo_reposicao_pedido_totvs_preview(payload: dict[str, Any] = Body(...))
         year=int(payload.get("year") or 2026),
         month=month,
         pedido_tipo=pedido_tipo,
+        cenario=str(payload.get("cenario") or "atual"),
         filtros=payload.get("filtros") or {},
     )
     test_item = payload.get("test_item") is True
     if test_item:
         rows = rows[:1]
 
-    pedido_tipo_order_id = pedido_tipo
+    cenario = str(payload.get("cenario") or "atual")
+    pedido_tipo_order_id = pedido_tipo if cenario == "atual" else f"{pedido_tipo}-{cenario}"
     if test_item:
         pedido_tipo_order_id = f"{pedido_tipo}-TEST-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
@@ -2586,6 +3545,7 @@ def processo_reposicao_pedido_totvs_enviar(payload: dict[str, Any] = Body(...)):
         year=int(payload.get("year") or 2026),
         month=month,
         pedido_tipo=pedido_tipo,
+        cenario=str(payload.get("cenario") or "atual"),
         filtros=payload.get("filtros") or {},
     )
     if payload.get("test_item"):

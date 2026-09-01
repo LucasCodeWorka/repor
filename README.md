@@ -503,7 +503,8 @@ Resposta esperada na matriz: todas as linhas com `necessidade = 0`, `entrada_tot
 7. Criar cache de transito antes de abater mercadoria em transito na sugestao.
 8. Confirmar se operacao `140` deve contar como entrada de transferencia.
 9. Padronizar encoding dos textos do frontend; alguns arquivos mostram caracteres quebrados em portugues.
-10. Este repositorio deve continuar sem `.env`, CSVs grandes, logs e dependencias instaladas.
+10. Melhorar visualizacao da matriz agrupando por `Loja -> Curva -> Referencia/Cor/Tamanho`, com subtotais e grupos recolhiveis.
+11. Este repositorio deve continuar sem `.env`, CSVs grandes, logs e dependencias instaladas.
 
 ## Publicacao GitHub
 

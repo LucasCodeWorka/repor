@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Boxes, CheckCircle2, Clock3, PackageSearch, RefreshCw } from "lucide-react";
+import { AlertTriangle, Boxes, CheckCircle2, Clock3, Filter, Package, PackageSearch, RefreshCw, Store, Tag } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MetricCard, formatNumber, formatPercent } from "../components/cards/MetricCard";
 import { EvolucaoMensal } from "../components/charts/EvolucaoMensal";
@@ -139,84 +139,116 @@ export default function DashboardPage() {
       {loading ? <section className="loadingBand">Carregando indicadores...</section> : null}
 
       <section className="panel filterPanel">
-        <div className="filterGrid">
-          <label>
-            Loja
-            <input
-              inputMode="numeric"
-              placeholder="Codigo da loja"
-              value={filtros.cd_loja ?? ""}
-              onChange={(event) => handleFiltroChange("cd_loja", event.target.value)}
-            />
-          </label>
-          <label>
-            Referencia
-            <input
-              placeholder="Ex: 103605"
-              value={filtros.referencia ?? ""}
-              onChange={(event) => handleFiltroChange("referencia", event.target.value)}
-            />
-          </label>
-          <label>
-            Entrou sem necessidade
-            <select
-              value={filtros.somente_entrada_sem_necessidade ?? ""}
-              onChange={(event) => handleFiltroChange("somente_entrada_sem_necessidade", event.target.value)}
-            >
-              <option value="">Todos</option>
-              <option value="true">Somente sim</option>
-            </select>
-          </label>
-          <label>
-            Status do produto
-            <select
-              value={filtros.status_produto ?? ""}
-              onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
-            >
-              <option value="">Todos</option>
-              {classificacoes.status_produto.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Continuidade
-            <select
-              value={filtros.continuidade ?? ""}
-              onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
-            >
-              <option value="">Todas</option>
-              {classificacoes.continuidade.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Linha
-            <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
-              <option value="">Todas</option>
-              {classificacoes.linha.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Família
-            <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
-              <option value="">Todas</option>
-              {classificacoes.familia.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="filterGroups">
+          {/* Grupo: Localização */}
+          <div className="filterGroup">
+            <div className="filterGroupTitle">
+              <Store size={14} />
+              Localização
+            </div>
+            <div className="filterGrid">
+              <label>
+                Loja
+                <input
+                  inputMode="numeric"
+                  placeholder="Código da loja"
+                  value={filtros.cd_loja ?? ""}
+                  onChange={(event) => handleFiltroChange("cd_loja", event.target.value)}
+                />
+              </label>
+              <label>
+                Referência
+                <input
+                  placeholder="Ex: 103605"
+                  value={filtros.referencia ?? ""}
+                  onChange={(event) => handleFiltroChange("referencia", event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Grupo: Classificação do Produto */}
+          <div className="filterGroup">
+            <div className="filterGroupTitle">
+              <Tag size={14} />
+              Classificação
+            </div>
+            <div className="filterGrid">
+              <label>
+                Status
+                <select
+                  value={filtros.status_produto ?? ""}
+                  onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {classificacoes.status_produto.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Continuidade
+                <select
+                  value={filtros.continuidade ?? ""}
+                  onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {classificacoes.continuidade.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Linha
+                <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
+                  <option value="">Todas</option>
+                  {classificacoes.linha.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Família
+                <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
+                  <option value="">Todas</option>
+                  {classificacoes.familia.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {/* Grupo: Filtros Especiais */}
+          <div className="filterGroup">
+            <div className="filterGroupTitle">
+              <Filter size={14} />
+              Especial
+            </div>
+            <div className="filterGrid">
+              <label>
+                Entrada sem necessidade
+                <select
+                  value={filtros.somente_entrada_sem_necessidade ?? ""}
+                  onChange={(event) => handleFiltroChange("somente_entrada_sem_necessidade", event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="true">Somente sim</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="filterActions">
           <button
             type="button"
             onClick={() => {
@@ -226,6 +258,9 @@ export default function DashboardPage() {
             disabled={loading}
           >
             Limpar filtros
+            {Object.keys(activeFiltros()).length > 0 && (
+              <span className="activeFiltersCount">{Object.keys(activeFiltros()).length}</span>
+            )}
           </button>
         </div>
       </section>

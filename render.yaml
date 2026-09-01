@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: repor-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: TOTVS_TOKEN_URL
+        sync: false
+      - key: TOTVS_ORDER_URL
+        sync: false
+      - key: TOTVS_USERNAME
+        sync: false
+      - key: TOTVS_PASSWORD
+        sync: false
+      - key: TOTVS_BRANCH_CODE
+        sync: false
+      - key: TOTVS_REPRESENTATIVE_CODE
+        sync: false
+
+  - type: web
+    name: repor-web
+    runtime: node
+    rootDir: frontend
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -H 0.0.0.0 -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 20.12.0
+      - key: NEXT_PUBLIC_API_URL
+        value: https://repor-api.onrender.com

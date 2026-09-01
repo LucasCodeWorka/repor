@@ -178,9 +178,9 @@ export type DiagnosticoProdutoFiltros = {
   mes_inicio?: string;
   mes_fim?: string;
   cd_loja?: string;
-  referencia?: string;
-  cor?: string;
-  tamanho?: string;
+  referencia?: string | string[];
+  cor?: string | string[];
+  tamanho?: string | string[];
   limit?: number;
 };
 
@@ -289,14 +289,26 @@ export type ProcessoReposicaoRow = {
   tamanho: string;
   curva_completa: string;
   media_mensal: number;
+  media_6m_sem_abr_mai?: number;
+  media_12m_consideravel?: number;
+  media_12m_sem_ruptura?: number;
   estoque_minimo: number;
+  estoque_minimo_6m?: number;
+  estoque_minimo_12m?: number;
+  estoque_minimo_sem_ruptura?: number;
   saldo_inicial: number;
   necessidade: number;
+  necessidade_6m?: number;
+  necessidade_12m?: number;
+  necessidade_sem_ruptura?: number;
   entrada_total: number;
   qtd_sugerida_bruta?: number;
   qtd_pendente_pedido?: number;
   qtd_transito?: number;
   qtd_ja_programada?: number;
+  qtd_sugerida_6m?: number;
+  qtd_sugerida_12m?: number;
+  qtd_sugerida_sem_ruptura?: number;
   qtd_sugerida: number;
   original_price?: number;
   price?: number;
@@ -309,6 +321,117 @@ export type ProcessoReposicaoRow = {
   freight_type?: string | null;
   status_reposicao: string;
   prioridade: string;
+};
+
+export type Media12mImpactoResumo = {
+  skus_analisados: number;
+  lojas: number;
+  referencias: number;
+  skus_com_gap: number;
+  ruptura_silenciosa: number;
+  subestimados: number;
+  gap_pecas: number;
+  media_antiga_total: number;
+  media_12m_total: number;
+  media_sem_ruptura_total: number;
+  estoque_cd_skus_gap: number;
+  qtd_recuperavel: number;
+  deficit_pos_estoque: number;
+};
+
+export type Media12mImpactoLoja = {
+  cd_loja: number;
+  nome_loja: string;
+  skus_com_gap: number;
+  ruptura_silenciosa: number;
+  gap_pecas: number;
+  qtd_recuperavel: number;
+  media_antiga_total: number;
+  media_12m_total: number;
+  media_sem_ruptura_total: number;
+};
+
+export type Media12mImpactoReferencia = {
+  referencia: string;
+  descricao_produto: string;
+  lojas: number;
+  skus_com_gap: number;
+  ruptura_silenciosa: number;
+  gap_pecas: number;
+  qtd_recuperavel: number;
+  media_antiga_total: number;
+  media_12m_total: number;
+  media_sem_ruptura_total: number;
+};
+
+export type Media12mImpactoCurva = {
+  curva_completa: string;
+  skus_com_gap: number;
+  ruptura_silenciosa: number;
+  gap_pecas: number;
+  qtd_recuperavel: number;
+};
+
+export type Media12mImpactoRow = {
+  mes: string;
+  cd_loja: number;
+  nome_loja: string;
+  referencia: string;
+  descricao_produto: string;
+  cd_produto: number;
+  status_produto?: string | null;
+  continuidade?: string | null;
+  linha?: string | null;
+  familia?: string | null;
+  cor: string;
+  tamanho: string;
+  curva_completa: string;
+  vendas_3m: number;
+  media_antiga_3m: number;
+  media_nova_12m: number;
+  media_bruta_12m: number;
+  media_sem_ruptura_12m: number;
+  venda_12m_considerada: number;
+  entrada_12m_considerada: number;
+  venda_12m_sem_ruptura: number;
+  entrada_12m_sem_ruptura: number;
+  meses_considerados: number;
+  meses_considerados_sem_ruptura: number;
+  meses_utilizados_media_3m?: string | null;
+  valores_utilizados_media_3m?: string | null;
+  formula_media_antiga_3m?: string | null;
+  meses_utilizados_media?: string | null;
+  valores_utilizados_media?: string | null;
+  formula_media_nova?: string | null;
+  meses_utilizados_media_sem_ruptura?: string | null;
+  valores_utilizados_media_sem_ruptura?: string | null;
+  formula_media_sem_ruptura?: string | null;
+  meses_excluidos_media_sem_ruptura?: string | null;
+  explicacao_media_12m?: string | null;
+  explicacao_media_sem_ruptura?: string | null;
+  estoque_minimo_antigo: number;
+  saldo_inicial: number;
+  necessidade_antiga: number;
+  entrada_total: number;
+  estoque_disponivel_cd: number;
+  multiplicador_curva: number;
+  estoque_minimo_12m: number;
+  gap_media: number;
+  necessidade_12m: number;
+  gap_necessidade: number;
+  diagnostico: string;
+  qtd_recuperavel_sku: number;
+  deficit_pos_estoque_sku: number;
+  qtd_recuperavel_rateada: number;
+  cobertura_potencial_meses: number;
+};
+
+export type Media12mImpacto = {
+  resumo: Media12mImpactoResumo;
+  por_loja: Media12mImpactoLoja[];
+  por_referencia: Media12mImpactoReferencia[];
+  por_curva: Media12mImpactoCurva[];
+  rows: Media12mImpactoRow[];
 };
 
 export type TotvsConfigStatus = {

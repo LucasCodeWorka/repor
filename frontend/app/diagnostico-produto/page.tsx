@@ -3,6 +3,7 @@
 import { AlertTriangle, Microscope, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MetricCard, formatNumber } from "../../components/cards/MetricCard";
+import { MultiSelect } from "../../components/inputs/MultiSelect";
 import { PageContainer } from "../../components/layout/PageContainer";
 import { api } from "../../services/api";
 import type {
@@ -43,6 +44,9 @@ export default function DiagnosticoProdutoPage() {
     limit: 1000,
   });
   const [lojaInput, setLojaInput] = useState("");
+  const [referencias, setReferencias] = useState<string[]>([]);
+  const [cores, setCores] = useState<string[]>([]);
+  const [tamanhos, setTamanhos] = useState<string[]>([]);
   const [opcoes, setOpcoes] = useState<DiagnosticoProdutoOpcoes>(emptyOpcoes);
   const [rows, setRows] = useState<DiagnosticoProdutoRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,6 +101,9 @@ export default function DiagnosticoProdutoPage() {
           ...filtros,
           year: filtros.year ?? YEAR,
           cd_loja: lojaCodigoSelecionado(),
+          referencia: referencias.length > 0 ? referencias : undefined,
+          cor: cores.length > 0 ? cores : undefined,
+          tamanho: tamanhos.length > 0 ? tamanhos : undefined,
         })
         .then(setOpcoes)
         .catch(() => setOpcoes(emptyOpcoes))
@@ -105,7 +112,7 @@ export default function DiagnosticoProdutoPage() {
 
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros.mes_inicio, filtros.mes_fim, filtros.referencia, filtros.cor, filtros.tamanho, lojaInput]);
+  }, [filtros.mes_inicio, filtros.mes_fim, referencias, cores, tamanhos, lojaInput]);
 
   async function loadData() {
     setLoading(true);
@@ -116,6 +123,9 @@ export default function DiagnosticoProdutoPage() {
         ...filtros,
         year: filtros.year ?? YEAR,
         cd_loja: lojaCodigoSelecionado(),
+        referencia: referencias.length > 0 ? referencias : undefined,
+        cor: cores.length > 0 ? cores : undefined,
+        tamanho: tamanhos.length > 0 ? tamanhos : undefined,
         limit: filtros.limit ?? 1000,
       });
       setRows(data);
@@ -153,91 +163,102 @@ export default function DiagnosticoProdutoPage() {
           </div>
           <span className="badge">{rows.length} linhas</span>
         </div>
-        <div className="filterGrid diagnosticFilters">
-          <label>
-            Mes inicial
-            <input
-              list="diagnostico-meses"
-              value={filtros.mes_inicio ?? ""}
-              onChange={(event) => handleChange("mes_inicio", event.target.value)}
-            />
-          </label>
-          <label>
-            Mes final
-            <input
-              list="diagnostico-meses"
-              value={filtros.mes_fim ?? ""}
-              onChange={(event) => handleChange("mes_fim", event.target.value)}
-            />
-          </label>
-          <label>
-            Loja
-            <input
-              list="diagnostico-lojas"
-              placeholder={loadingOpcoes ? "Carregando lojas..." : "Digite ou selecione a loja"}
-              value={lojaInput}
-              onChange={(event) => setLojaInput(event.target.value)}
-            />
-          </label>
-          <label>
-            Referencia
-            <input
-              list="diagnostico-referencias"
-              placeholder="Ex: 103605"
-              value={filtros.referencia ?? ""}
-              onChange={(event) => handleChange("referencia", event.target.value)}
-            />
-          </label>
-          <label>
-            Cor
-            <input
-              list="diagnostico-cores"
-              placeholder="Branco, Preto, Nude..."
-              value={filtros.cor ?? ""}
-              onChange={(event) => handleChange("cor", event.target.value)}
-            />
-          </label>
-          <label>
-            Tamanho
-            <input
-              list="diagnostico-tamanhos"
-              placeholder="M"
-              value={filtros.tamanho ?? ""}
-              onChange={(event) => handleChange("tamanho", event.target.value)}
-            />
-          </label>
-          <button type="button" className="btnPrimary" onClick={loadData} disabled={loading}>
-            <Search size={16} />
-            Gerar diagnostico
-          </button>
+        <div className="diagnosticFilters">
+          <div className="filterRow">
+            <label className="small">
+              Mes inicial
+              <select
+                value={filtros.mes_inicio ?? ""}
+                onChange={(event) => handleChange("mes_inicio", event.target.value)}
+              >
+                {monthOptions.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="small">
+              Mes final
+              <select
+                value={filtros.mes_fim ?? ""}
+                onChange={(event) => handleChange("mes_fim", event.target.value)}
+              >
+                {monthOptions.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="large">
+              Loja
+              <select
+                value={lojaInput}
+                onChange={(event) => setLojaInput(event.target.value)}
+              >
+                <option value="">Todas as lojas</option>
+                {opcoes.lojas.map((item) => (
+                  <option key={item.cd_loja} value={`${item.cd_loja} - ${item.nome_loja}`}>
+                    {item.cd_loja} - {item.nome_loja}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="filterRow">
+            <label className="large">
+              Referencia
+              <MultiSelect
+                options={opcoes.referencias.map((r) => ({ value: r.referencia, label: `${r.referencia} - ${r.descricao_produto}`, shortLabel: r.referencia }))}
+                value={referencias}
+                onChange={setReferencias}
+                placeholder="Selecione..."
+                loading={loadingOpcoes}
+              />
+            </label>
+            <label className="large">
+              Cor
+              <MultiSelect
+                options={opcoes.cores.map((c) => ({ value: c.valor, label: c.valor }))}
+                value={cores}
+                onChange={setCores}
+                placeholder="Selecione..."
+                loading={loadingOpcoes}
+              />
+            </label>
+            <label className="medium">
+              Tamanho
+              <MultiSelect
+                options={opcoes.tamanhos.map((t) => ({ value: t.valor, label: t.valor }))}
+                value={tamanhos}
+                onChange={setTamanhos}
+                placeholder="Selecione..."
+                loading={loadingOpcoes}
+              />
+            </label>
+            <div className="filterActions">
+              <button type="button" className="btnPrimary" onClick={loadData} disabled={loading}>
+                <Search size={16} />
+                Gerar diagnostico
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLojaInput("");
+                  setReferencias([]);
+                  setCores([]);
+                  setTamanhos([]);
+                  setFiltros({
+                    year: YEAR,
+                    mes_inicio: "2026-01",
+                    mes_fim: "2026-12",
+                    limit: 1000,
+                  });
+                }}
+                disabled={loading}
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
         </div>
-        <datalist id="diagnostico-meses">
-          {monthOptions.map((item) => (
-            <option key={item} value={item} />
-          ))}
-        </datalist>
-        <datalist id="diagnostico-lojas">
-          {opcoes.lojas.map((item) => (
-            <option key={item.cd_loja} value={`${item.cd_loja} - ${item.nome_loja}`} />
-          ))}
-        </datalist>
-        <datalist id="diagnostico-referencias">
-          {opcoes.referencias.map((item) => (
-            <option key={item.referencia} value={item.referencia}>
-              {item.descricao_produto}
-            </option>
-          ))}
-        </datalist>
-        <datalist id="diagnostico-cores">
-          {opcoes.cores.map((item) => (
-            <option key={item.valor} value={item.valor} />
-          ))}
-        </datalist>
-        <datalist id="diagnostico-tamanhos">
-          {opcoes.tamanhos.map((item) => (
-            <option key={item.valor} value={item.valor} />
-          ))}
-        </datalist>
       </section>
 
       {loading ? <section className="loadingBand">Gerando diagnostico...</section> : null}
@@ -318,6 +339,13 @@ export default function DiagnosticoProdutoPage() {
             </div>
           </section>
         </>
+      ) : null}
+
+      {!searched && !loading ? (
+        <section className="notice">
+          <AlertTriangle size={20} />
+          <span>Selecione pelo menos uma <strong>loja</strong> ou <strong>referencia</strong> e clique em "Gerar diagnostico".</span>
+        </section>
       ) : null}
 
       {searched && !loading && rows.length === 0 ? (

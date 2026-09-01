@@ -14,8 +14,10 @@ import type {
   TotvsPedidoPreview,
 } from "../../types/reposicao";
 
-const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
-const CURRENT_YEAR = Number(CURRENT_MONTH.slice(0, 4));
+// Usar mês fixo até que dados mais recentes estejam disponíveis
+const CURRENT_MONTH = "2026-08";
+const CURRENT_YEAR = 2026;
+const MONTH_OPTIONS = ["2026-09", "2026-08", "2026-07", "2026-06"];
 const emptyClassificacoes: ClassificacaoFiltros = {
   status_produto: [],
   continuidade: [],
@@ -46,6 +48,13 @@ type PedidoReposicao = {
 };
 
 type TotvsOrderPreview = NonNullable<TotvsPedidoPreview["orders"]>[number];
+type MediaScenarioKey = "media3m" | "media6m" | "media12m";
+
+const mediaScenarios: Array<{ key: MediaScenarioKey; title: string; subtitle: string }> = [
+  { key: "media3m", title: "Media 3m", subtitle: "Ultimos 3 meses antes do periodo" },
+  { key: "media6m", title: "Media 6m sem abr/mai", subtitle: "Ultimos 6 meses, removendo abril e maio" },
+  { key: "media12m", title: "Media 12m", subtitle: "Meses consideraveis dos ultimos 12 meses" },
+];
 
 function curvaNormalizada(curva: string) {
   return curva.trim().toUpperCase();
@@ -73,6 +82,46 @@ function coverage(stock: number, monthlyAverage: number) {
   return stock / monthlyAverage;
 }
 
+function scenarioMedia(row: ProcessoReposicaoRow, scenario: MediaScenarioKey) {
+  const media3m = Number(row.media_mensal || 0);
+  if (scenario === "media12m") return Math.max(media3m, Number(row.media_12m_consideravel || 0));
+  if (scenario === "media6m") return Math.max(media3m, Number(row.media_6m_sem_abr_mai || 0));
+  return media3m;
+}
+
+function scenarioNeed(row: ProcessoReposicaoRow, scenario: MediaScenarioKey) {
+  if (scenario === "media12m") return Number(row.necessidade_12m || 0);
+  if (scenario === "media6m") return Number(row.necessidade_6m || 0);
+  return Number(row.necessidade || 0);
+}
+
+function scenarioOrderQty(row: ProcessoReposicaoRow, scenario: MediaScenarioKey) {
+  if (scenario === "media12m") return Number(row.qtd_sugerida_12m || 0);
+  if (scenario === "media6m") return Number(row.qtd_sugerida_6m || 0);
+  return Number(row.qtd_sugerida || 0);
+}
+
+function applyScenario(row: ProcessoReposicaoRow, scenario: MediaScenarioKey): PedidoReposicaoRow {
+  const necessidade = scenarioNeed(row, scenario);
+  const entradaTotal = Number(row.entrada_total || 0);
+  const qtdSugerida = scenarioOrderQty(row, scenario);
+  return {
+    ...row,
+    media_mensal: scenarioMedia(row, scenario),
+    estoque_minimo: Number(
+      scenario === "media12m"
+        ? row.estoque_minimo_12m
+        : scenario === "media6m"
+          ? row.estoque_minimo_6m
+          : row.estoque_minimo,
+    ) || 0,
+    necessidade,
+    qtd_sugerida_bruta: Math.max(0, necessidade - entradaTotal),
+    qtd_sugerida: qtdSugerida,
+    qtd_pedido: qtdSugerida,
+  };
+}
+
 type CalculationMemory = {
   curva: string;
   multiplicador: number;
@@ -93,6 +142,7 @@ type CalculationMemory = {
 function buildCalculationMemory(row: PedidoReposicaoRow): CalculationMemory {
   const curva = String(row.curva_completa || "");
   const multiplicador = isCurvaAAA(curva) ? 1.5 : 1.0;
+  const targetDays = isCurvaAAA(curva) ? 45 : 30;
   const media = Number(row.media_mensal || 0);
   const estMin = Number(row.estoque_minimo || 0);
   const saldo = Number(row.saldo_inicial || 0);
@@ -118,7 +168,7 @@ function buildCalculationMemory(row: PedidoReposicaoRow): CalculationMemory {
     `Pedido: ${formatNumber(pedido)}`,
   ].join(" | ");
 
-  return { curva, multiplicador, media, estMin, saldo, nec, ent, faltaBruta, pendPedido, transito, jaProg, pedido, formula, detalhes };
+  return { curva, multiplicador, media, estMin, saldo, nec, ent, faltaBruta, pendPedido, transito, jaProg, pedido, formula, detalhes: `${detalhes} | Meta: ${targetDays} dias` };
 }
 
 function CalculationTooltip({ memory }: { memory: CalculationMemory }) {
@@ -413,7 +463,8 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
 }
 
 export default function ProcessoReposicaoPage() {
-  const [month] = useState(CURRENT_MONTH);
+  const [month, setMonth] = useState(CURRENT_MONTH);
+  const [scenario, setScenario] = useState<MediaScenarioKey>("media3m");
   const [filtros, setFiltros] = useState<ReposicaoFiltros>({});
   const [classificacoes, setClassificacoes] = useState<ClassificacaoFiltros>(emptyClassificacoes);
   const [resumo, setResumo] = useState<ProcessoReposicaoResumo>(emptyResumo);
@@ -474,6 +525,7 @@ export default function ProcessoReposicaoPage() {
         year: CURRENT_YEAR,
         month,
         pedido_tipo: pedidoTipo,
+        cenario: scenario,
         filtros: activeFiltros(),
       });
       setTotvsPreviews((current) => ({ ...current, [pedidoTipo]: preview }));
@@ -496,6 +548,7 @@ export default function ProcessoReposicaoPage() {
         year: CURRENT_YEAR,
         month,
         pedido_tipo: pedidoTipo,
+        cenario: scenario,
         filtros: activeFiltros(),
         test_item: true,
         confirmar: true,
@@ -519,6 +572,7 @@ export default function ProcessoReposicaoPage() {
         year: CURRENT_YEAR,
         month,
         pedido_tipo: pedidoTipo,
+        cenario: scenario,
         filtros: activeFiltros(),
         test_item: true,
       });
@@ -554,6 +608,7 @@ export default function ProcessoReposicaoPage() {
         year: CURRENT_YEAR,
         month,
         pedido_tipo: pedidoTipo,
+        cenario: scenario,
         filtros: activeFiltros(),
         test_item: false,
         confirmar: true,
@@ -597,6 +652,7 @@ export default function ProcessoReposicaoPage() {
         year: CURRENT_YEAR,
         month,
         pedido_tipo: pedidoTipo,
+        cenario: scenario,
         filtros: activeFiltros(),
       });
       setTotvsPreviews((current) => ({ ...current, [pedidoTipo]: updatedPreview }));
@@ -608,11 +664,52 @@ export default function ProcessoReposicaoPage() {
     }
   }
 
+  const scenarioSummaries = useMemo(() => {
+    const currentPieces = rows.reduce((sum, row) => sum + scenarioOrderQty(row, "media3m"), 0);
+    return mediaScenarios.map((scenario) => {
+      const activeRows = rows.filter((row) => scenarioOrderQty(row, scenario.key) > 0);
+      const pieces = activeRows.reduce((sum, row) => sum + scenarioOrderQty(row, scenario.key), 0);
+      const need = activeRows.reduce((sum, row) => sum + scenarioNeed(row, scenario.key), 0);
+      const mediaTotal = activeRows.reduce((sum, row) => sum + scenarioMedia(row, scenario.key), 0);
+      const lojas = new Set(activeRows.map((row) => row.cd_loja)).size;
+      const curvaAAA = activeRows.filter((row) => isCurvaAAA(row.curva_completa)).reduce((sum, row) => sum + scenarioOrderQty(row, scenario.key), 0);
+      const curvaBC = activeRows.filter((row) => isCurvaBC(row.curva_completa)).reduce((sum, row) => sum + scenarioOrderQty(row, scenario.key), 0);
+      const addedVs3m = rows.reduce(
+        (sum, row) => sum + Math.max(0, scenarioOrderQty(row, scenario.key) - scenarioOrderQty(row, "media3m")),
+        0,
+      );
+      const recoveredRows = rows.filter((row) => scenarioOrderQty(row, scenario.key) > scenarioOrderQty(row, "media3m"));
+      const reducedVs3m = rows.reduce(
+        (sum, row) => sum + Math.max(0, scenarioOrderQty(row, "media3m") - scenarioOrderQty(row, scenario.key)),
+        0,
+      );
+      return {
+        ...scenario,
+        skus: activeRows.length,
+        lojas,
+        pieces,
+        need,
+        mediaTotal,
+        curvaAAA,
+        curvaBC,
+        addedVs3m,
+        recoveredSkus: recoveredRows.length,
+        recoveredStores: new Set(recoveredRows.map((row) => row.cd_loja)).size,
+        reducedVs3m,
+        deltaPieces: pieces - currentPieces,
+        deltaPercent: currentPieces > 0 ? ((pieces - currentPieces) / currentPieces) * 100 : pieces > 0 ? null : 0,
+      };
+    });
+  }, [rows]);
+
   const pedidos = useMemo<PedidoReposicao[]>(() => {
-    const curvaAAA = rows
+    const scenarioRows = rows
+      .filter((row) => scenarioOrderQty(row, scenario) > 0)
+      .map((row) => applyScenario(row, scenario));
+    const curvaAAA = scenarioRows
       .filter((row) => isCurvaAAA(row.curva_completa))
       .map((row) => ({ ...row, qtd_pedido: Number(row.qtd_sugerida || 0) }));
-    const curvaBC = rows.filter((row) => isCurvaBC(row.curva_completa));
+    const curvaBC = scenarioRows.filter((row) => isCurvaBC(row.curva_completa));
     const primeiraBC = curvaBC
       .map((row) => ({ ...row, qtd_pedido: Math.ceil(Number(row.qtd_sugerida || 0) / 2) }))
       .filter((row) => row.qtd_pedido > 0);
@@ -640,7 +737,25 @@ export default function ProcessoReposicaoPage() {
         rows: segundaBC,
       },
     ];
-  }, [month, rows]);
+  }, [month, rows, scenario]);
+
+  const selectedRows = useMemo(
+    () => rows.filter((row) => scenarioOrderQty(row, scenario) > 0).map((row) => applyScenario(row, scenario)),
+    [rows, scenario],
+  );
+
+  const selectedSummary = useMemo(() => ({
+    skus_sugeridos: selectedRows.length,
+    lojas: new Set(selectedRows.map((row) => row.cd_loja)).size,
+    pecas_sugeridas: selectedRows.reduce((sum, row) => sum + Number(row.qtd_pedido || 0), 0),
+    criticos: selectedRows.filter((row) => row.prioridade === "CRITICA").length,
+    altos: selectedRows.filter((row) => row.prioridade === "ALTA").length,
+  }), [selectedRows]);
+
+  const selectedScenarioSummary = useMemo(
+    () => scenarioSummaries.find((item) => item.key === scenario) ?? scenarioSummaries[0],
+    [scenario, scenarioSummaries],
+  );
 
   const selectedTotvsItems = (selectedTotvsOrder?.payload.items as Array<Record<string, unknown>> | undefined) ?? [];
 
@@ -668,8 +783,87 @@ export default function ProcessoReposicaoPage() {
 
       {loading ? <section className="loadingBand">Carregando processo de reposição...</section> : null}
 
+      <section className="panel scenarioPanel">
+        <div className="scenarioHeader">
+          <div>
+            <h2>Cenario de calculo</h2>
+            <p>Escolha a media e todo o painel recalcula pedidos, totais e previa TOTVS pelo mesmo criterio.</p>
+          </div>
+          <span className="badge">Meta A/AA 45 dias | B/C 30 dias</span>
+        </div>
+        <div className="scenarioButtons" role="tablist" aria-label="Cenario de reposicao">
+          {mediaScenarios.map((item) => {
+            const summary = scenarioSummaries.find((summaryItem) => summaryItem.key === item.key);
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={scenario === item.key ? "active" : ""}
+                onClick={() => {
+                  setScenario(item.key);
+                  setTotvsPreviews({});
+                  setSelectedTotvsOrder(null);
+                  setTotvsError(null);
+                }}
+              >
+                <strong>{item.title}</strong>
+                <span>{item.subtitle}</span>
+                <em>{formatNumber(summary?.pieces ?? 0)} pecas</em>
+                <small>{formatNumber(summary?.skus ?? 0)} SKUs / {formatNumber(summary?.lojas ?? 0)} lojas</small>
+                <small>Recupera {formatNumber(summary?.recoveredSkus ?? 0)} SKUs em {formatNumber(summary?.recoveredStores ?? 0)} lojas</small>
+              </button>
+            );
+          })}
+        </div>
+        {selectedScenarioSummary ? (
+          <div className="scenarioImpact">
+            <span>
+              <strong>{formatNumber(selectedScenarioSummary.pieces)}</strong>
+              pecas no cenario
+            </span>
+            <span>
+              <strong>{selectedScenarioSummary.deltaPieces >= 0 ? "+" : ""}{formatNumber(selectedScenarioSummary.deltaPieces)}</strong>
+              vs media 3m
+            </span>
+            <span>
+              <strong>+{formatNumber(selectedScenarioSummary.addedVs3m)}</strong>
+              pecas recuperadas
+            </span>
+            <span>
+              <strong>{formatNumber(selectedScenarioSummary.recoveredSkus)}</strong>
+              SKUs recuperados
+            </span>
+            <span>
+              <strong>{formatNumber(selectedScenarioSummary.recoveredStores)}</strong>
+              lojas com gap recuperado
+            </span>
+            <span>
+              <strong>-{formatNumber(selectedScenarioSummary.reducedVs3m)}</strong>
+              reduz
+            </span>
+          </div>
+        ) : null}
+      </section>
+
       <section className="panel filterPanel">
         <div className="filterGrid">
+          <label>
+            Periodo
+            <select
+              value={month}
+              onChange={(event) => {
+                const nextMonth = event.target.value;
+                setMonth(nextMonth);
+                loadData(nextMonth, filtros);
+              }}
+            >
+              {MONTH_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Status do produto
             <select
@@ -733,11 +927,82 @@ export default function ProcessoReposicaoPage() {
         </div>
       </section>
 
+      <section className="panel">
+        <div className="panelHeader">
+          <div>
+            <h2>Comparativo de cenarios de media</h2>
+            <p>Simula a reposicao do periodo com media 3m, 6m sem abril/maio e 12m, usando meta de 45 dias para A/AA e 30 dias para B/C.</p>
+          </div>
+          <span className="badge">{month}</span>
+        </div>
+        {month === "2026-09" && rows.length === 0 ? (
+          <section className="notice warning">
+            <AlertTriangle size={20} />
+            <span>Periodo 2026-09 selecionado, mas a base analitica ainda nao retornou SKUs para setembro. Quando a carga/cache de setembro estiver disponivel, este painel ja calcula os 3 cenarios.</span>
+          </section>
+        ) : null}
+        <div className="metricGrid three">
+          {scenarioSummaries.map((scenario) => (
+            <MetricCard
+              key={scenario.key}
+              icon={<Target size={18} />}
+              title={scenario.title}
+              value={scenario.pieces}
+              subtitle={`${formatNumber(scenario.skus)} SKUs / ${formatNumber(scenario.lojas)} lojas`}
+              tone={scenario.key === "media3m" ? "blue" : scenario.key === "media6m" ? "pink" : "green"}
+            />
+          ))}
+        </div>
+        <div className="matrixWrap">
+          <table className="matrixTable">
+            <thead>
+              <tr>
+                <th>Cenario</th>
+                <th>SKUs atingidos</th>
+                <th>Lojas</th>
+                <th>Media total</th>
+                <th>Necessidade</th>
+                <th>Pecas sugeridas</th>
+                <th>A/AA</th>
+                <th>B/C</th>
+                <th>Pecas recuperadas</th>
+                <th>SKUs recuperados</th>
+                <th>Lojas recuperadas</th>
+                <th>Reduz vs 3m</th>
+                <th>Vs 3m</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenarioSummaries.map((scenario) => (
+                <tr className="matrixSku" key={`${scenario.key}-row`}>
+                  <td>
+                    <strong>{scenario.title}</strong>
+                    <span>{scenario.subtitle}</span>
+                  </td>
+                  <td>{formatNumber(scenario.skus)}</td>
+                  <td>{formatNumber(scenario.lojas)}</td>
+                  <td>{formatDecimal(scenario.mediaTotal)}</td>
+                  <td>{formatNumber(scenario.need)}</td>
+                  <td className="highlight-result">{formatNumber(scenario.pieces)}</td>
+                  <td>{formatNumber(scenario.curvaAAA)}</td>
+                  <td>{formatNumber(scenario.curvaBC)}</td>
+                  <td className="highlight-green">+{formatNumber(scenario.addedVs3m)}</td>
+                  <td>{formatNumber(scenario.recoveredSkus)}</td>
+                  <td>{formatNumber(scenario.recoveredStores)}</td>
+                  <td className="highlight-red">-{formatNumber(scenario.reducedVs3m)}</td>
+                  <td>{scenario.deltaPercent === null ? "novo" : `${scenario.deltaPieces >= 0 ? "+" : ""}${formatNumber(scenario.deltaPieces)} (${formatDecimal(scenario.deltaPercent)}%)`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="metricGrid four">
-        <MetricCard icon={<ClipboardList size={18} />} title="SKUs sugeridos" value={resumo.skus_sugeridos} subtitle={`${formatNumber(rows.length)} exibidos`} tone="pink" />
-        <MetricCard icon={<PackageCheck size={18} />} title="Peças a repor" value={resumo.pecas_sugeridas} subtitle="Soma da falta por SKU" tone="blue" />
-        <MetricCard icon={<Store size={18} />} title="Lojas" value={resumo.lojas} subtitle="Com sugestão no recorte" tone="gray" />
-        <MetricCard icon={<Target size={18} />} title="Críticos" value={resumo.criticos} subtitle={`${formatNumber(resumo.altos)} alta prioridade`} tone="red" />
+        <MetricCard icon={<ClipboardList size={18} />} title="SKUs sugeridos" value={selectedSummary.skus_sugeridos} subtitle={`${formatNumber(selectedRows.length)} no cenário`} tone="pink" />
+        <MetricCard icon={<PackageCheck size={18} />} title="Peças a repor" value={selectedSummary.pecas_sugeridas} subtitle="Cenário selecionado" tone="blue" />
+        <MetricCard icon={<Store size={18} />} title="Lojas" value={selectedSummary.lojas} subtitle="Com sugestão no cenário" tone="gray" />
+        <MetricCard icon={<Target size={18} />} title="Críticos" value={selectedSummary.criticos} subtitle={`${formatNumber(selectedSummary.altos)} alta prioridade`} tone="red" />
       </section>
 
       <section className="panel">

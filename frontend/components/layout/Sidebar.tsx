@@ -1,45 +1,25 @@
 "use client";
 
 import {
-  AlertTriangle,
-  Calendar,
+  Activity,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Database,
-  Microscope,
-  LayoutDashboard,
-  PackageCheck,
-  Settings,
-  Store,
-  TrendingDown,
   Minus,
+  PackageCheck,
   Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Menu organizado por seções como no Plano de Produção
 const menuSections = [
   {
-    title: "ESSENCIAIS",
+    title: "MENU",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", href: "/" },
       { icon: ClipboardList, label: "Processo", href: "/processo-reposicao" },
+      { icon: Activity, label: "Gap media 12m", href: "/media-12m-impacto" },
       { icon: PackageCheck, label: "Acompanhamento", href: "/acompanhamento" },
-      { icon: Store, label: "Lojas", href: "/lojas" },
-      { icon: Calendar, label: "Meses", href: "/meses" },
-      { icon: Microscope, label: "Diagnostico SKU", href: "/diagnostico-produto" },
-      { icon: AlertTriangle, label: "Alertas", href: "/alertas" },
-      { icon: TrendingDown, label: "SKUs sem reposição", href: "/skus-mortos" },
-    ],
-  },
-  {
-    title: "CONFIGURAÇÕES",
-    items: [
-      { icon: Settings, label: "Configurações", href: "/configuracoes" },
-      { icon: Database, label: "Admin / Cache", href: "/cache" },
     ],
   },
 ];
@@ -113,41 +93,42 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Controles de acessibilidade como no Plano de Produção */}
       {!collapsed ? (
-      <div className="sidebarAccessibility">
-        <span className="sidebarSectionTitle">Acessibilidade</span>
-        <div className="accessibilityControl">
-          <span>Fonte</span>
-          <div className="accessibilityButtons">
-            <button onClick={() => setFontScale((current) => Math.max(0.9, Number((current - 0.05).toFixed(2))))}>
-              <Minus size={12} />
-            </button>
-            <span>{Math.round(fontScale * 100)}%</span>
-            <button onClick={() => setFontScale((current) => Math.min(1.25, Number((current + 0.05).toFixed(2))))}>
-              <Plus size={12} />
-            </button>
+        <div className="sidebarAccessibility">
+          <span className="sidebarSectionTitle">Acessibilidade</span>
+          <div className="accessibilityControl">
+            <span>Fonte</span>
+            <div className="accessibilityButtons">
+              <button onClick={() => setFontScale((current) => Math.max(0.9, Number((current - 0.05).toFixed(2))))}>
+                <Minus size={12} />
+              </button>
+              <span>{Math.round(fontScale * 100)}%</span>
+              <button onClick={() => setFontScale((current) => Math.min(1.25, Number((current + 0.05).toFixed(2))))}>
+                <Plus size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="accessibilityControl">
+            <span>Zoom</span>
+            <div className="accessibilityButtons">
+              <button onClick={() => setZoomScale((current) => Math.max(0.9, Number((current - 0.05).toFixed(2))))}>
+                <Minus size={12} />
+              </button>
+              <span>{Math.round(zoomScale * 100)}%</span>
+              <button onClick={() => setZoomScale((current) => Math.min(1.15, Number((current + 0.05).toFixed(2))))}>
+                <Plus size={12} />
+              </button>
+            </div>
           </div>
         </div>
-        <div className="accessibilityControl">
-          <span>Zoom</span>
-          <div className="accessibilityButtons">
-            <button onClick={() => setZoomScale((current) => Math.max(0.9, Number((current - 0.05).toFixed(2))))}>
-              <Minus size={12} />
-            </button>
-            <span>{Math.round(zoomScale * 100)}%</span>
-            <button onClick={() => setZoomScale((current) => Math.min(1.15, Number((current + 0.05).toFixed(2))))}>
-              <Plus size={12} />
-            </button>
-          </div>
-        </div>
-      </div>
       ) : null}
 
-      {!collapsed ? <div className="sidebarFoot">
-        <span>Sistema PCP</span>
-        <strong>Reposicao inteligente</strong>
-      </div> : null}
+      {!collapsed ? (
+        <div className="sidebarFoot">
+          <span>Sistema PCP</span>
+          <strong>Reposicao inteligente</strong>
+        </div>
+      ) : null}
     </aside>
   );
 }
