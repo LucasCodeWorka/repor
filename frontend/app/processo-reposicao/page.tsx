@@ -242,10 +242,27 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
         </div>
 
         <div className="calcModalContent">
+          <div className="calcStepCard situacaoAtual">
+            <div className="calcStepHeader">
+              <span className="calcStepNumber">0</span>
+              <strong>Situacao Atual da Loja</strong>
+            </div>
+            <div className="calcStepBody">
+              <div className="calcRow"><span>Estoque atual (Saldo inicial)</span><strong className="highlight-blue">{formatNumber(memory.saldo)}</strong></div>
+              <div className="calcRow"><span>Pendente em pedido</span><strong>{formatNumber(memory.pendPedido)}</strong></div>
+              <div className="calcRow"><span>Em transito</span><strong>{formatNumber(memory.transito)}</strong></div>
+              <div className="calcRow"><span>Ja programado</span><strong>{formatNumber(memory.jaProg)}</strong></div>
+              <div className="calcRow"><span>Entrada ja recebida no periodo</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
+              <div className="calcInfo">
+                <p>💡 O estoque atual ({formatNumber(memory.saldo)}) é o saldo inicial da loja antes de qualquer entrada. A entrada total ({formatNumber(memory.ent)}) já foi recebida e será considerada no cálculo.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="calcStepCard">
             <div className="calcStepHeader">
               <span className="calcStepNumber">1</span>
-              <strong>Base do Calculo</strong>
+              <strong>Calculo do Estoque Minimo</strong>
             </div>
             <div className="calcStepBody">
               <div className="calcRow"><span>Media mensal</span><strong>{formatDecimal(memory.media)}</strong></div>
@@ -264,17 +281,20 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
           <div className="calcStepCard">
             <div className="calcStepHeader">
               <span className="calcStepNumber">2</span>
-              <strong>Necessidade</strong>
+              <strong>Calculo da Necessidade</strong>
             </div>
             <div className="calcStepBody">
-              <div className="calcRow"><span>Estoque minimo</span><strong className="highlight-amber">{formatNumber(memory.estMin)}</strong></div>
-              <div className="calcRow"><span>Saldo inicial</span><strong>{formatNumber(memory.saldo)}</strong></div>
+              <div className="calcRow"><span>Estoque minimo (meta)</span><strong className="highlight-amber">{formatNumber(memory.estMin)}</strong></div>
+              <div className="calcRow"><span>Estoque atual da loja (saldo inicial)</span><strong className="highlight-blue">{formatNumber(memory.saldo)}</strong></div>
               <div className="calcFormula">
-                <code>Necessidade = max(0, Est.Min - Saldo) = max(0, {formatNumber(memory.estMin)} - {formatNumber(memory.saldo)}) = {formatNumber(memory.nec)}</code>
+                <code>Necessidade = max(0, Est.Min - Estoque Atual) = max(0, {formatNumber(memory.estMin)} - {formatNumber(memory.saldo)}) = {formatNumber(memory.nec)}</code>
               </div>
               <div className="calcResult">
                 <span>Necessidade calculada</span>
                 <strong className="highlight-pink">{formatNumber(memory.nec)}</strong>
+              </div>
+              <div className="calcInfo">
+                <p>💡 A necessidade é quanto falta para atingir o estoque mínimo, considerando apenas o saldo atual da loja.</p>
               </div>
             </div>
           </div>
@@ -282,17 +302,20 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
           <div className="calcStepCard">
             <div className="calcStepHeader">
               <span className="calcStepNumber">3</span>
-              <strong>Falta Bruta</strong>
+              <strong>Abatimento da Entrada Recebida</strong>
             </div>
             <div className="calcStepBody">
-              <div className="calcRow"><span>Necessidade</span><strong className="highlight-pink">{formatNumber(memory.nec)}</strong></div>
-              <div className="calcRow"><span>Entrada total</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
+              <div className="calcRow"><span>Necessidade calculada</span><strong className="highlight-pink">{formatNumber(memory.nec)}</strong></div>
+              <div className="calcRow"><span>Entrada ja recebida no periodo</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
               <div className="calcFormula">
-                <code>Falta Bruta = max(0, Nec - Entrada) = max(0, {formatNumber(memory.nec)} - {formatNumber(memory.ent)}) = {formatNumber(memory.faltaBruta)}</code>
+                <code>Falta Bruta = max(0, Nec - Entrada Recebida) = max(0, {formatNumber(memory.nec)} - {formatNumber(memory.ent)}) = {formatNumber(memory.faltaBruta)}</code>
               </div>
               <div className="calcResult">
-                <span>Falta bruta</span>
+                <span>Falta bruta apos entrada</span>
                 <strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong>
+              </div>
+              <div className="calcInfo">
+                <p>💡 A entrada total ({formatNumber(memory.ent)}) já foi recebida pela loja e abate da necessidade. A falta bruta é o que ainda precisa ser reposto.</p>
               </div>
             </div>
           </div>
@@ -300,18 +323,54 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
           <div className="calcStepCard">
             <div className="calcStepHeader">
               <span className="calcStepNumber">4</span>
-              <strong>Deducoes</strong>
+              <strong>Deducao do Ja Programado</strong>
             </div>
             <div className="calcStepBody">
-              <div className="calcRow"><span>Pendente pedido</span><strong>{formatNumber(memory.pendPedido)}</strong></div>
-              <div className="calcRow"><span>Em transito</span><strong>{formatNumber(memory.transito)}</strong></div>
-              <div className="calcRow"><span>Ja programado</span><strong>{formatNumber(memory.jaProg)}</strong></div>
+              <div className="calcRow"><span>Falta bruta</span><strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong></div>
+              <div className="calcRow"><span>Ja programado (pedidos futuros)</span><strong>{formatNumber(memory.jaProg)}</strong></div>
               <div className="calcFormula">
                 <code>Pedido = max(0, Falta - JaProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
               </div>
               <div className="calcResult final">
                 <span>Pedido Final</span>
                 <strong className="highlight-green">{formatNumber(memory.pedido)}</strong>
+              </div>
+              <div className="calcInfo">
+                <p>💡 Do que ainda falta ({formatNumber(memory.faltaBruta)}), descontamos o já programado ({formatNumber(memory.jaProg)}) para não duplicar pedidos. O resultado é o pedido final.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="calcSummary">
+            <h3>Resumo do Calculo</h3>
+            <div className="calcSummaryGrid">
+              <div className="calcSummaryItem">
+                <span>Estoque atual na loja</span>
+                <strong>{formatNumber(memory.saldo)}</strong>
+              </div>
+              <div className="calcSummaryItem">
+                <span>+ Entrada recebida</span>
+                <strong>+ {formatNumber(memory.ent)}</strong>
+              </div>
+              <div className="calcSummaryItem">
+                <span>= Estoque total disponivel</span>
+                <strong>= {formatNumber(memory.saldo + memory.ent)}</strong>
+              </div>
+              <div className="calcSummaryItem highlight">
+                <span>Estoque minimo necessario</span>
+                <strong>{formatNumber(memory.estMin)}</strong>
+              </div>
+              <div className="calcSummaryItem highlight">
+                <span>Falta (Est.Min - Disponivel)</span>
+                <strong>{formatNumber(memory.faltaBruta)}</strong>
+              </div>
+              <div className="calcSummaryItem">
+                <span>- Ja programado</span>
+                <strong>- {formatNumber(memory.jaProg)}</strong>
+              </div>
+              <div className="calcSummaryItem result">
+                <span>= PEDIDO FINAL</span>
+                <strong>= {formatNumber(memory.pedido)}</strong>
               </div>
             </div>
           </div>

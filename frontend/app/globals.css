@@ -2006,6 +2006,98 @@ h2 {
   box-shadow: 0 2px 8px rgba(179, 131, 140, 0.12);
 }
 
+.calcInfo {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #bfdbfe;
+}
+
+.calcInfo p {
+  margin: 0;
+  color: #1e40af;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.calcStepCard.situacaoAtual {
+  background: linear-gradient(to bottom, #f0f9ff, #e0f2fe);
+  border-color: #0ea5e9;
+}
+
+.calcStepCard.situacaoAtual .calcStepNumber {
+  background: #0ea5e9;
+}
+
+.calcSummary {
+  margin-top: 8px;
+  padding: 20px;
+  border: 2px solid var(--brand-primary);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fdf2f8, #ffffff);
+}
+
+.calcSummary h3 {
+  margin: 0 0 16px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.calcSummaryGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.calcSummaryItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+
+.calcSummaryItem.highlight {
+  background: linear-gradient(135deg, #fef3c7, #fef9c3);
+  border-color: #fbbf24;
+}
+
+.calcSummaryItem.result {
+  margin-top: 8px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  border: 2px solid var(--green);
+}
+
+.calcSummaryItem span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.calcSummaryItem.result span {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.calcSummaryItem strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.calcSummaryItem.result strong {
+  color: var(--green);
+  font-size: 20px;
+}
+
 .totvsItemsTable {
   min-width: 920px;
   table-layout: fixed;
