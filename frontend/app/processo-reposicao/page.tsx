@@ -53,7 +53,7 @@ type MediaScenarioKey = "media3m" | "media6m" | "media12m";
 const mediaScenarios: Array<{ key: MediaScenarioKey; title: string; subtitle: string }> = [
   { key: "media3m", title: "Media 3m", subtitle: "Ultimos 3 meses antes do periodo" },
   { key: "media6m", title: "Media 6m sem abr/mai", subtitle: "Ultimos 6 meses, removendo abril e maio" },
-  { key: "media12m", title: "Media 12m", subtitle: "Meses consideraveis dos ultimos 12 meses" },
+  { key: "media12m", title: "Media 12m sem ruptura", subtitle: "Desconsidera mes em que vendeu tudo" },
 ];
 
 function curvaNormalizada(curva: string) {
@@ -84,7 +84,7 @@ function coverage(stock: number, monthlyAverage: number) {
 
 function scenarioMedia(row: ProcessoReposicaoRow, scenario: MediaScenarioKey) {
   const media3m = Number(row.media_mensal || 0);
-  if (scenario === "media12m") return Math.max(media3m, Number(row.media_12m_consideravel || 0));
+  if (scenario === "media12m") return Math.max(media3m, Number(row.media_12m_sem_ruptura || 0));
   if (scenario === "media6m") return Math.max(media3m, Number(row.media_6m_sem_abr_mai || 0));
   return media3m;
 }

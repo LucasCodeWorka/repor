@@ -2339,7 +2339,7 @@ def processo_reposicao_query(
                 ROUND(
                     GREATEST(
                         COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
-                        MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                        MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
                     )
                     * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
                     0
@@ -2349,7 +2349,7 @@ def processo_reposicao_query(
                     ROUND(
                         GREATEST(
                             COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
-                            MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                            MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
                         )
                         * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
                         0
@@ -2362,7 +2362,7 @@ def processo_reposicao_query(
                         ROUND(
                             GREATEST(
                                 COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
-                                MAX(COALESCE(m_calc.media_12m_consideravel, 0))
+                                MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
                             )
                             * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
                             0
@@ -2542,7 +2542,7 @@ def processo_reposicao_resumo(
     if not month:
         month = date.today().strftime("%Y-%m")
     cache_params = {
-        "version": "processo_resumo_v4_media_protegida",
+        "version": "processo_resumo_v5_12m_sem_ruptura",
         "year": year,
         "month": month,
         "status_produto": status_produto,
@@ -2606,7 +2606,7 @@ def processo_reposicao_sugestao(
     if not month:
         month = date.today().strftime("%Y-%m")
     cache_params = {
-        "version": "processo_sugestao_v4_media_protegida",
+        "version": "processo_sugestao_v5_12m_sem_ruptura",
         "year": year,
         "month": month,
         "limit": limit,
@@ -3250,10 +3250,10 @@ def processo_reposicao_rows_for_order(
         raise HTTPException(status_code=422, detail="cenario invalido.")
     for row in rows:
         curva = str(row.get("curva_completa") or "")
-        if cenario_normalizado == "media12m" or cenario_normalizado == "consideravel12m":
+        if cenario_normalizado == "media12m" or cenario_normalizado == "semRuptura12m":
             row["media_mensal"] = max(
                 float(row.get("media_mensal") or 0),
-                float(row.get("media_12m_consideravel") or 0),
+                float(row.get("media_12m_sem_ruptura") or 0),
             )
             row["estoque_minimo"] = row.get("estoque_minimo_12m") or 0
             row["necessidade"] = row.get("necessidade_12m") or 0
@@ -3274,10 +3274,13 @@ def processo_reposicao_rows_for_order(
                 float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
             )
             qtd = float(row.get("qtd_sugerida_6m") or 0)
-        elif cenario_normalizado == "semRuptura12m":
-            row["media_mensal"] = row.get("media_12m_sem_ruptura") or 0
-            row["estoque_minimo"] = row.get("estoque_minimo_sem_ruptura") or 0
-            row["necessidade"] = row.get("necessidade_sem_ruptura") or 0
+        elif cenario_normalizado == "consideravel12m":
+            row["media_mensal"] = max(
+                float(row.get("media_mensal") or 0),
+                float(row.get("media_12m_consideravel") or 0),
+            )
+            row["estoque_minimo"] = row.get("estoque_minimo_12m") or 0
+            row["necessidade"] = row.get("necessidade_12m") or 0
             row["qtd_sugerida_bruta"] = max(
                 0,
                 float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
