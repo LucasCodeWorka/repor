@@ -35,6 +35,7 @@ app.add_middleware(
         "http://127.0.0.1:3001",
         "http://localhost:3002",
         "http://127.0.0.1:3002",
+        "https://repor-web.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
