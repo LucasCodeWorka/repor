@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronRight, ClipboardList, FileSearch, PackageCheck, RefreshCw, Send, Store, Target, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, ClipboardList, FileSearch, PackageCheck, RefreshCw, Send, Store, Tag, Target, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { MetricCard, formatNumber } from "../../components/cards/MetricCard";
 import { StatusBadge } from "../../components/cards/StatusBadge";
@@ -846,84 +846,104 @@ export default function ProcessoReposicaoPage() {
       </section>
 
       <section className="panel filterPanel">
-        <div className="filterGrid">
-          <label>
-            Periodo
-            <select
-              value={month}
-              onChange={(event) => {
-                const nextMonth = event.target.value;
-                setMonth(nextMonth);
-                loadData(nextMonth, filtros);
+        <div className="filterGroups">
+          <div className="filterGroup">
+            <div className="filterGroupTitle">
+              <Store size={14} />
+              Periodo
+            </div>
+            <div className="filterGrid">
+              <label>
+                Mes de analise
+                <select
+                  value={month}
+                  onChange={(event) => {
+                    const nextMonth = event.target.value;
+                    setMonth(nextMonth);
+                    loadData(nextMonth, filtros);
+                  }}
+                >
+                  {MONTH_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="filterGroup">
+            <div className="filterGroupTitle">
+              <Tag size={14} />
+              Classificacao
+            </div>
+            <div className="filterGrid">
+              <label>
+                Status
+                <select
+                  value={filtros.status_produto ?? ""}
+                  onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {classificacoes.status_produto.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Continuidade
+                <select
+                  value={filtros.continuidade ?? ""}
+                  onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {classificacoes.continuidade.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Linha
+                <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
+                  <option value="">Todas</option>
+                  {classificacoes.linha.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Familia
+                <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
+                  <option value="">Todas</option>
+                  {classificacoes.familia.map((item) => (
+                    <option key={item.valor} value={item.valor}>
+                      {item.valor}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="filterGroup">
+            <button
+              type="button"
+              onClick={() => {
+                setFiltros({});
+                loadData(month, {});
               }}
+              disabled={loading}
             >
-              {MONTH_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status do produto
-            <select
-              value={filtros.status_produto ?? ""}
-              onChange={(event) => handleFiltroChange("status_produto", event.target.value)}
-            >
-              <option value="">Todos</option>
-              {classificacoes.status_produto.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Continuidade
-            <select
-              value={filtros.continuidade ?? ""}
-              onChange={(event) => handleFiltroChange("continuidade", event.target.value)}
-            >
-              <option value="">Todas</option>
-              {classificacoes.continuidade.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Linha
-            <select value={filtros.linha ?? ""} onChange={(event) => handleFiltroChange("linha", event.target.value)}>
-              <option value="">Todas</option>
-              {classificacoes.linha.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Família
-            <select value={filtros.familia ?? ""} onChange={(event) => handleFiltroChange("familia", event.target.value)}>
-              <option value="">Todas</option>
-              {classificacoes.familia.map((item) => (
-                <option key={item.valor} value={item.valor}>
-                  {item.valor}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              setFiltros({});
-              loadData(month, {});
-            }}
-            disabled={loading}
-          >
-            Limpar filtros
-          </button>
+              Limpar filtros
+            </button>
+          </div>
         </div>
       </section>
 
