@@ -454,6 +454,7 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
               <th className="colNum">Média</th>
               <th className="colNum">Est.Mín</th>
               <th className="colNum">Saldo</th>
+              <th className="colNum highlight-blue">Est.Disp</th>
               <th className="colNum highlight-pink">Nec.</th>
               <th className="colNum highlight-blue">Entrada</th>
               <th className="colNum highlight-amber">Falta</th>
@@ -477,6 +478,7 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
               <td>-</td>
               <td>-</td>
               <td>{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
+              <td className="highlight-blue">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
               <td className="highlight-pink">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
               <td className="highlight-blue">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
               <td className="highlight-amber">{formatNumber(pedido.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
@@ -506,6 +508,7 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                     <td>-</td>
                     <td>-</td>
                     <td>{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
+                    <td className="highlight-blue">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
                     <td className="highlight-pink">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
                     <td className="highlight-blue">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
                     <td className="highlight-amber">{formatNumber(empresa.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
@@ -539,6 +542,7 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                               <td>-</td>
                               <td>-</td>
                               <td>{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
+                              <td className="highlight-blue">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
                               <td className="highlight-pink">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
                               <td className="highlight-blue">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
                               <td className="highlight-amber">{formatNumber(ref.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
@@ -583,6 +587,7 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                                     <td>{formatDecimal(memory.media)}</td>
                                     <td>{formatNumber(memory.estMin)}</td>
                                     <td>{formatNumber(memory.saldo)}</td>
+                                    <td className="highlight-blue">{formatNumber(memory.saldo + memory.ent)}</td>
                                     <td className="highlight-pink">{formatNumber(memory.nec)}</td>
                                     <td className="highlight-blue">{formatNumber(memory.ent)}</td>
                                     <td className="highlight-amber">{formatNumber(memory.faltaBruta)}</td>
