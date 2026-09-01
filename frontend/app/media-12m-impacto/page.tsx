@@ -514,6 +514,33 @@ export default function Media12mImpactoPage() {
         <MetricCard title="Media sem ruptura" value={formatPercent(reducaoSemRuptura)} subtitle="Variacao contra media 12m" tone="green" />
       </section>
 
+      <section className="panel media12ScenarioPanel">
+        <div className="panelHeader">
+          <div>
+            <h2>Cenario de Calculo</h2>
+            <p>Totalizadores de media usados nesta analise para {CURRENT_MONTH}</p>
+          </div>
+        </div>
+        <div className="media12ScenarioGrid">
+          <article className="media12ScenarioCard">
+            <span className="media12ScenarioLabel">Media 3m</span>
+            <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_antiga_total)}</strong>
+            <p className="media12ScenarioDesc">Total de pecas/mes pela regra atual</p>
+          </article>
+          <article className="media12ScenarioCard media12ScenarioActive">
+            <span className="media12ScenarioLabel">Media 12m Consideravel</span>
+            <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_12m_total)}</strong>
+            <p className="media12ScenarioDesc">Total de pecas/mes com meses consideraveis</p>
+            <em className="media12ScenarioBadge">Cenario ativo</em>
+          </article>
+          <article className="media12ScenarioCard">
+            <span className="media12ScenarioLabel">Media 12m Sem Ruptura</span>
+            <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_sem_ruptura_total)}</strong>
+            <p className="media12ScenarioDesc">Total de pecas/mes excluindo meses zerados</p>
+          </article>
+        </div>
+      </section>
+
       <section className="media12Explain">
         <div>
           <strong>Falha da regra atual</strong>

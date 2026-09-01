@@ -51,9 +51,9 @@ type TotvsOrderPreview = NonNullable<TotvsPedidoPreview["orders"]>[number];
 type MediaScenarioKey = "media3m" | "media6m" | "media12m";
 
 const mediaScenarios: Array<{ key: MediaScenarioKey; title: string; subtitle: string }> = [
-  { key: "media3m", title: "Media 3m", subtitle: "Ultimos 3 meses antes do periodo" },
-  { key: "media6m", title: "Media 6m sem abr/mai", subtitle: "Ultimos 6 meses, removendo abril e maio" },
-  { key: "media12m", title: "Media 12m sem ruptura", subtitle: "Desconsidera mes em que vendeu tudo" },
+  { key: "media3m", title: "Reposicao pela Media 3m", subtitle: "Ultimos 3 meses antes do periodo" },
+  { key: "media6m", title: "Reposicao pela Media 6m", subtitle: "Ultimos 6 meses, removendo abril e maio" },
+  { key: "media12m", title: "Reposicao pela Media 12m", subtitle: "Desconsidera mes em que vendeu tudo" },
 ];
 
 function curvaNormalizada(curva: string) {

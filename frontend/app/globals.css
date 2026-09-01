@@ -721,6 +721,93 @@ h2 {
   font-size: 24px;
 }
 
+.media12ScenarioPanel {
+  margin-bottom: 18px;
+}
+
+.media12ScenarioGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.media12ScenarioCard {
+  position: relative;
+  min-height: 140px;
+  padding: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow);
+}
+
+.media12ScenarioCard:hover {
+  border-color: var(--brand-secondary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.media12ScenarioActive {
+  border-color: var(--brand-primary);
+  border-width: 2px;
+  background: linear-gradient(135deg, #fdf2f8 0%, #ffffff 100%);
+  box-shadow: 0 4px 12px rgba(179, 131, 140, 0.15);
+}
+
+.media12ScenarioActive:hover {
+  box-shadow: 0 6px 16px rgba(179, 131, 140, 0.2);
+}
+
+.media12ScenarioLabel {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.media12ScenarioActive .media12ScenarioLabel {
+  color: var(--brand-primary);
+}
+
+.media12ScenarioValue {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--brand-dark);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.media12ScenarioActive .media12ScenarioValue {
+  color: var(--brand-primary);
+}
+
+.media12ScenarioDesc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.media12ScenarioBadge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .media12Explain {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
