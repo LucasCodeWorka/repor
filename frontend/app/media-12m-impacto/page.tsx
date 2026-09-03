@@ -646,6 +646,7 @@ export default function Media12mImpactoPage() {
         <div className="media12CurveGrid">
           {data.por_curva.map((row) => {
             const perda3m = Number(row.gap_necessidade_total || 0);
+            const perdaSilenciosa = Number(row.gap_silencioso_total || 0);
             const recuperavel = Number(row.qtd_recuperavel || 0);
             const recuperavelPct = perda3m > 0 ? (recuperavel / perda3m) * 100 : 0;
             const curvaKey = row.curva_completa || "Sem curva";
@@ -662,9 +663,9 @@ export default function Media12mImpactoPage() {
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
                 <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
-                <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
+                <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m, apenas SKUs afetados</p>
                 <div className="media12CurveMetrics">
-                  <small><b>{formatSignedNumber(perda3m)} pecas</b> em {formatNumber(row.ruptura_silenciosa)} SKUs que o 3m nao pegava</small>
+                  <small><b>{formatSignedNumber(perdaSilenciosa)} pecas</b> em {formatNumber(row.ruptura_silenciosa)} SKUs que o 3m nao pegava</small>
                   <small><b>{formatNumber(recuperavel)}</b> pecas recuperaveis agora ({formatPercent(recuperavelPct)})</small>
                   <small><b>{formatNumber(row.skus_com_gap)}</b> SKUs com necessidade maior no 12m</small>
                   <small><b>{formatSignedNumber(row.gap_estoque_minimo_total)}</b> aumento de estoque minimo</small>
@@ -672,6 +673,7 @@ export default function Media12mImpactoPage() {
                 <em>{formatNumber(lojas.length)} lojas para validar</em>
                 {isOpen ? (
                   <div className="media12CurveStores">
+                    <p className="media12CurveNote">Necessidade = max(0, estoque minimo - saldo), calculada SKU a SKU. Nos totais, a tela soma o resultado de cada SKU.</p>
                     <table>
                       <thead>
                         <tr>
@@ -679,6 +681,7 @@ export default function Media12mImpactoPage() {
                           <th>3m</th>
                           <th>12m</th>
                           <th>Dif. est.</th>
+                          <th>Saldo</th>
                           <th>Nec. 3m</th>
                           <th>Nec. 12m</th>
                           <th>Perda 3m</th>
@@ -710,6 +713,7 @@ export default function Media12mImpactoPage() {
                                 <td>{formatNumber(loja.estoque_minimo_3m_total)}</td>
                                 <td>{formatNumber(loja.estoque_minimo_12m_total)}</td>
                                 <td>{formatSignedNumber(loja.gap_estoque_minimo_total)}</td>
+                                <td>{formatNumber(loja.saldo_total)}</td>
                                 <td>{formatNumber(loja.necessidade_3m_total)}</td>
                                 <td>{formatNumber(loja.necessidade_12m_total)}</td>
                                 <td>{formatSignedNumber(loja.gap_necessidade_total)}</td>
@@ -739,6 +743,7 @@ export default function Media12mImpactoPage() {
                                           <td>{formatNumber(referencia.estoque_minimo_3m_total)}</td>
                                           <td>{formatNumber(referencia.estoque_minimo_12m_total)}</td>
                                           <td>{formatSignedNumber(referencia.gap_estoque_minimo_total)}</td>
+                                          <td>{formatNumber(referencia.saldo_total)}</td>
                                           <td>{formatNumber(referencia.necessidade_3m_total)}</td>
                                           <td>{formatNumber(referencia.necessidade_12m_total)}</td>
                                           <td>{formatSignedNumber(referencia.gap_necessidade_total)}</td>
@@ -756,6 +761,7 @@ export default function Media12mImpactoPage() {
                                                 <td>{formatNumber(sku.estoque_minimo_3m_total)}</td>
                                                 <td>{formatNumber(sku.estoque_minimo_12m_total)}</td>
                                                 <td>{formatSignedNumber(sku.gap_estoque_minimo_total)}</td>
+                                                <td>{formatNumber(sku.saldo_total)}</td>
                                                 <td>{formatNumber(sku.necessidade_3m_total)}</td>
                                                 <td>{formatNumber(sku.necessidade_12m_total)}</td>
                                                 <td>{formatSignedNumber(sku.gap_necessidade_total)}</td>

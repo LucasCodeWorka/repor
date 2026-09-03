@@ -2964,7 +2964,7 @@ def analise_media_12m_impacto(
     if not relation_exists("public.mv_pcp_estoque_atual"):
         raise HTTPException(status_code=404, detail="View mv_pcp_estoque_atual ainda nao existe.")
     cache_params = {
-        "version": "media_12m_impacto_v10_drilldown_ref_sku",
+        "version": "media_12m_impacto_v12_saldo_perda_silenciosa",
         "year": year,
         "month": month,
         "limit": limit,
@@ -3059,14 +3059,16 @@ def analise_media_12m_impacto(
             COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
             COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
             COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
-            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
-            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
-            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
-            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(media_antiga_3m) FILTER (WHERE gap_necessidade > 0), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m) FILTER (WHERE gap_necessidade > 0), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_12m_total,
             COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
-            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
-            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
-            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+            COALESCE(SUM(gap_necessidade) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA'), 0) AS gap_silencioso_total,
+            COALESCE(SUM(saldo_inicial) FILTER (WHERE gap_necessidade > 0), 0) AS saldo_total,
+            COALESCE(SUM(estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS gap_estoque_minimo_total
         FROM final
         GROUP BY curva_completa
         HAVING SUM(gap_necessidade) > 0
@@ -3086,14 +3088,16 @@ def analise_media_12m_impacto(
             COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
             COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
             COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
-            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
-            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
-            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
-            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(media_antiga_3m) FILTER (WHERE gap_necessidade > 0), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m) FILTER (WHERE gap_necessidade > 0), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_12m_total,
             COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
-            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
-            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
-            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+            COALESCE(SUM(gap_necessidade) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA'), 0) AS gap_silencioso_total,
+            COALESCE(SUM(saldo_inicial) FILTER (WHERE gap_necessidade > 0), 0) AS saldo_total,
+            COALESCE(SUM(estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS gap_estoque_minimo_total
         FROM final
         GROUP BY curva_completa, cd_loja, nome_loja
         HAVING SUM(gap_necessidade) > 0
@@ -3115,14 +3119,16 @@ def analise_media_12m_impacto(
             COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
             COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
             COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
-            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
-            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
-            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
-            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(media_antiga_3m) FILTER (WHERE gap_necessidade > 0), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m) FILTER (WHERE gap_necessidade > 0), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m) FILTER (WHERE gap_necessidade > 0), 0) AS necessidade_12m_total,
             COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
-            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
-            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
-            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+            COALESCE(SUM(gap_necessidade) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA'), 0) AS gap_silencioso_total,
+            COALESCE(SUM(saldo_inicial) FILTER (WHERE gap_necessidade > 0), 0) AS saldo_total,
+            COALESCE(SUM(estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m) FILTER (WHERE gap_necessidade > 0), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo) FILTER (WHERE gap_necessidade > 0), 0) AS gap_estoque_minimo_total
         FROM final
         GROUP BY curva_completa, cd_loja, nome_loja, referencia
         HAVING SUM(gap_necessidade) > 0
@@ -3152,6 +3158,8 @@ def analise_media_12m_impacto(
             COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
             COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
             COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
+            COALESCE(SUM(gap_necessidade) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA'), 0) AS gap_silencioso_total,
+            COALESCE(SUM(saldo_inicial), 0) AS saldo_total,
             COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
             COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
             COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total

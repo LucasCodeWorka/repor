@@ -1077,9 +1077,18 @@ h2 {
   background: #ffffff;
 }
 
+.media12CurveNote {
+  margin: 0;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .media12CurveStores table {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   border-collapse: collapse;
 }
 

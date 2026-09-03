@@ -380,6 +380,8 @@ export type Media12mImpactoCurva = {
   necessidade_3m_total: number;
   necessidade_12m_total: number;
   gap_necessidade_total: number;
+  gap_silencioso_total: number;
+  saldo_total: number;
   estoque_minimo_3m_total: number;
   estoque_minimo_12m_total: number;
   gap_estoque_minimo_total: number;
