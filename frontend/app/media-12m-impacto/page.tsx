@@ -780,6 +780,7 @@ export default function Media12mImpactoPage() {
         </div>
       </section>
 
+      {false ? (
       <section className="panel">
         <div className="panelHeader">
           <div>
@@ -941,6 +942,7 @@ export default function Media12mImpactoPage() {
           </table>
         </div>
       </section>
+      ) : null}
       {selectedMemory ? <MediaMemoryModal row={selectedMemory} onClose={() => setSelectedMemory(null)} /> : null}
     </PageContainer>
   );
