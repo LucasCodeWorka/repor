@@ -334,6 +334,9 @@ export type Media12mImpactoResumo = {
   media_antiga_total: number;
   media_12m_total: number;
   media_sem_ruptura_total: number;
+  estoque_minimo_3m_total: number;
+  estoque_minimo_12m_total: number;
+  gap_estoque_minimo_total: number;
   estoque_cd_skus_gap: number;
   qtd_recuperavel: number;
   deficit_pos_estoque: number;
@@ -366,10 +369,25 @@ export type Media12mImpactoReferencia = {
 
 export type Media12mImpactoCurva = {
   curva_completa: string;
+  skus_3m: number;
+  skus_12m: number;
   skus_com_gap: number;
   ruptura_silenciosa: number;
   gap_pecas: number;
   qtd_recuperavel: number;
+  media_antiga_total: number;
+  media_12m_total: number;
+  necessidade_3m_total: number;
+  necessidade_12m_total: number;
+  gap_necessidade_total: number;
+  estoque_minimo_3m_total: number;
+  estoque_minimo_12m_total: number;
+  gap_estoque_minimo_total: number;
+};
+
+export type Media12mImpactoCurvaLoja = Media12mImpactoCurva & {
+  cd_loja: number;
+  nome_loja: string;
 };
 
 export type Media12mImpactoRow = {
@@ -431,6 +449,7 @@ export type Media12mImpacto = {
   por_loja: Media12mImpactoLoja[];
   por_referencia: Media12mImpactoReferencia[];
   por_curva: Media12mImpactoCurva[];
+  por_curva_loja: Media12mImpactoCurvaLoja[];
   rows: Media12mImpactoRow[];
 };
 

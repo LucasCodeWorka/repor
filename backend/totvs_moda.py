@@ -169,12 +169,11 @@ def build_order_payload(
                 "discountPercentage": _row_float(row, "discount_percentage", 0.0),
                 "discountValue": _row_float(row, "discount_value", 0.0),
                 "currentCoverage": _coverage(
-                    _row_float(row, "saldo_inicial") + _row_float(row, "entrada_total"),
+                    _row_float(row, "saldo_inicial"),
                     _row_float(row, "media_mensal"),
                 ),
                 "projectedCoverage": _coverage(
                     _row_float(row, "saldo_inicial")
-                    + _row_float(row, "entrada_total")
                     + _row_float(row, "qtd_ja_programada")
                     + _row_float(row, "qtd_pedido"),
                     _row_float(row, "media_mensal"),

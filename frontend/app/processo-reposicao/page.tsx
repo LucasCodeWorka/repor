@@ -103,7 +103,6 @@ function scenarioOrderQty(row: ProcessoReposicaoRow, scenario: MediaScenarioKey)
 
 function applyScenario(row: ProcessoReposicaoRow, scenario: MediaScenarioKey): PedidoReposicaoRow {
   const necessidade = scenarioNeed(row, scenario);
-  const entradaTotal = Number(row.entrada_total || 0);
   const qtdSugerida = scenarioOrderQty(row, scenario);
   return {
     ...row,
@@ -116,7 +115,7 @@ function applyScenario(row: ProcessoReposicaoRow, scenario: MediaScenarioKey): P
           : row.estoque_minimo,
     ) || 0,
     necessidade,
-    qtd_sugerida_bruta: Math.max(0, necessidade - entradaTotal),
+    qtd_sugerida_bruta: necessidade,
     qtd_sugerida: qtdSugerida,
     qtd_pedido: qtdSugerida,
   };
@@ -152,16 +151,16 @@ function buildCalculationMemory(row: PedidoReposicaoRow): CalculationMemory {
   const transito = Number(row.qtd_transito || 0);
   const jaProg = Number(row.qtd_ja_programada || 0);
   const pedido = Number(row.qtd_pedido || 0);
-  const faltaBruta = Math.max(0, nec - ent);
+  const faltaBruta = nec;
 
-  const formula = `Nec ${formatNumber(nec)} - Ent ${formatNumber(ent)} - Prog ${formatNumber(jaProg)} = ${formatNumber(pedido)}`;
+  const formula = `Nec ${formatNumber(nec)} - Prog ${formatNumber(jaProg)} = ${formatNumber(pedido)}`;
   const detalhes = [
     `Média: ${formatDecimal(media)}`,
     `Est.Mín: ${formatNumber(estMin)}`,
     `Saldo: ${formatNumber(saldo)}`,
     `Necessidade: ${formatNumber(nec)}`,
-    `Entrada: ${formatNumber(ent)}`,
-    `Falta Bruta: ${formatNumber(faltaBruta)}`,
+    `Entrada recebida: ${formatNumber(ent)}`,
+    `Base do pedido: ${formatNumber(faltaBruta)}`,
     `Pend.Pedido: ${formatNumber(pendPedido)}`,
     `Trânsito: ${formatNumber(transito)}`,
     `Já Prog: ${formatNumber(jaProg)}`,
@@ -192,10 +191,10 @@ function CalculationTooltip({ memory }: { memory: CalculationMemory }) {
           </div>
         </div>
         <div className="calcSection">
-          <span className="calcLabel">3. Falta Bruta</span>
+          <span className="calcLabel">3. Base do Pedido</span>
           <div className="calcRow"><span>Necessidade</span><strong className="highlight-pink">{formatNumber(memory.nec)}</strong></div>
-          <div className="calcRow"><span>Entrada total</span><strong className="highlight-blue">- {formatNumber(memory.ent)}</strong></div>
-          <div className="calcRow"><span>= Falta bruta</span><strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong></div>
+          <div className="calcRow"><span>Entrada recebida</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
+          <div className="calcRow"><span>= Base para pedido</span><strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong></div>
         </div>
         <div className="calcSection">
           <span className="calcLabel">4. Deduções</span>
@@ -210,15 +209,15 @@ function CalculationTooltip({ memory }: { memory: CalculationMemory }) {
           <strong className="highlight-green">{formatNumber(memory.pedido)}</strong>
         </div>
         <div className="calcFormula">
-          <code>Falta({formatNumber(memory.faltaBruta)}) - JáProg({formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
+          <code>Nec({formatNumber(memory.faltaBruta)}) - JáProg({formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
         </div>
       </div>
       <div className="calcFullFormula">
         <span className="calcLabel">Fórmula Completa</span>
         <code>
           Necessidade = max(0, EstMín - Saldo) = max(0, {formatNumber(memory.estMin)} - {formatNumber(memory.saldo)}) = {formatNumber(memory.nec)}<br/>
-          Falta = max(0, Nec - Entrada) = max(0, {formatNumber(memory.nec)} - {formatNumber(memory.ent)}) = {formatNumber(memory.faltaBruta)}<br/>
-          Pedido = max(0, Falta - JáProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}
+          Base do pedido = Necessidade = {formatNumber(memory.faltaBruta)}<br/>
+          Pedido = max(0, Necessidade - JáProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}
         </code>
       </div>
     </div>
@@ -254,7 +253,7 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
               <div className="calcRow"><span>Ja programado</span><strong>{formatNumber(memory.jaProg)}</strong></div>
               <div className="calcRow"><span>Entrada ja recebida no periodo</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
               <div className="calcInfo">
-                <p>💡 O estoque atual ({formatNumber(memory.saldo)}) é o saldo inicial da loja antes de qualquer entrada. A entrada total ({formatNumber(memory.ent)}) já foi recebida e será considerada no cálculo.</p>
+                <p>A entrada total ({formatNumber(memory.ent)}) ja foi recebida no periodo e segue visivel para leitura do status, mas o pedido atual usa necessidade menos ja programado.</p>
               </div>
             </div>
           </div>
@@ -302,20 +301,20 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
           <div className="calcStepCard">
             <div className="calcStepHeader">
               <span className="calcStepNumber">3</span>
-              <strong>Abatimento da Entrada Recebida</strong>
+              <strong>Base do Pedido</strong>
             </div>
             <div className="calcStepBody">
               <div className="calcRow"><span>Necessidade calculada</span><strong className="highlight-pink">{formatNumber(memory.nec)}</strong></div>
               <div className="calcRow"><span>Entrada ja recebida no periodo</span><strong className="highlight-blue">{formatNumber(memory.ent)}</strong></div>
               <div className="calcFormula">
-                <code>Falta Bruta = max(0, Nec - Entrada Recebida) = max(0, {formatNumber(memory.nec)} - {formatNumber(memory.ent)}) = {formatNumber(memory.faltaBruta)}</code>
+                <code>Base do pedido = Necessidade = {formatNumber(memory.faltaBruta)}</code>
               </div>
               <div className="calcResult">
-                <span>Falta bruta apos entrada</span>
+                <span>Base calculada para pedido</span>
                 <strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong>
               </div>
               <div className="calcInfo">
-                <p>💡 A entrada total ({formatNumber(memory.ent)}) já foi recebida pela loja e abate da necessidade. A falta bruta é o que ainda precisa ser reposto.</p>
+                <p>A entrada recebida fica como historico do periodo. Para este pedido, a base considerada e a necessidade calculada.</p>
               </div>
             </div>
           </div>
@@ -326,10 +325,10 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
               <strong>Deducao do Ja Programado</strong>
             </div>
             <div className="calcStepBody">
-              <div className="calcRow"><span>Falta bruta</span><strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong></div>
+              <div className="calcRow"><span>Necessidade</span><strong className="highlight-amber">{formatNumber(memory.faltaBruta)}</strong></div>
               <div className="calcRow"><span>Ja programado (pedidos futuros)</span><strong>{formatNumber(memory.jaProg)}</strong></div>
               <div className="calcFormula">
-                <code>Pedido = max(0, Falta - JaProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
+                <code>Pedido = max(0, Necessidade - JaProg) = max(0, {formatNumber(memory.faltaBruta)} - {formatNumber(memory.jaProg)}) = {formatNumber(memory.pedido)}</code>
               </div>
               <div className="calcResult final">
                 <span>Pedido Final</span>
@@ -361,7 +360,7 @@ function CalculationModal({ memory, row, onClose }: { memory: CalculationMemory;
                 <strong>{formatNumber(memory.estMin)}</strong>
               </div>
               <div className="calcSummaryItem highlight">
-                <span>Falta (Est.Min - Disponivel)</span>
+                <span>Necessidade para pedido</span>
                 <strong>{formatNumber(memory.faltaBruta)}</strong>
               </div>
               <div className="calcSummaryItem">
@@ -450,20 +449,17 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
             <tr>
               <th className="colFixed">Empresa / Referência / SKU</th>
               <th className="colNum">SKUs</th>
-              <th className="colNum highlight-result">Pedido</th>
               <th className="colNum">Média</th>
+              <th>Curva</th>
               <th className="colNum">Est.Mín</th>
               <th className="colNum">Saldo</th>
-              <th className="colNum highlight-blue">Est.Disp</th>
               <th className="colNum highlight-pink">Nec.</th>
-              <th className="colNum highlight-blue">Entrada</th>
-              <th className="colNum highlight-amber">Falta</th>
               <th className="colNum">Pend.</th>
               <th className="colNum">Trâns.</th>
               <th className="colNum">Já Prog</th>
+              <th className="colNum highlight-result">Pedido</th>
               <th className="colNum">Cob.Atual</th>
               <th className="colNum">Cob.Pós</th>
-              <th>Curva</th>
               <th>Status</th>
               <th>Prior.</th>
             </tr>
@@ -474,18 +470,15 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                 <strong>Total do pedido</strong>
               </td>
               <td>{formatNumber(totalSkus)}</td>
-              <td className="highlight-result">{formatNumber(totalPecas)}</td>
+              <td>-</td>
               <td>-</td>
               <td>-</td>
               <td>{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
-              <td className="highlight-blue">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
               <td className="highlight-pink">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
-              <td className="highlight-blue">{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
-              <td className="highlight-amber">{formatNumber(pedido.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
               <td>{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.qtd_pendente_pedido || 0), 0))}</td>
               <td>{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.qtd_transito || 0), 0))}</td>
               <td>{formatNumber(pedido.rows.reduce((acc, row) => acc + Number(row.qtd_ja_programada || 0), 0))}</td>
-              <td>-</td>
+              <td className="highlight-result">{formatNumber(totalPecas)}</td>
               <td>-</td>
               <td>-</td>
               <td>-</td>
@@ -504,18 +497,15 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                       </button>
                     </td>
                     <td>{formatNumber(empresa.rows.length)}</td>
-                    <td className="highlight-result">{formatNumber(empresa.total)}</td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
-                    <td className="highlight-blue">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
                     <td className="highlight-pink">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
-                    <td className="highlight-blue">{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
-                    <td className="highlight-amber">{formatNumber(empresa.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
                     <td>{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.qtd_pendente_pedido || 0), 0))}</td>
                     <td>{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.qtd_transito || 0), 0))}</td>
                     <td>{formatNumber(empresa.rows.reduce((acc, row) => acc + Number(row.qtd_ja_programada || 0), 0))}</td>
-                    <td>-</td>
+                    <td className="highlight-result">{formatNumber(empresa.total)}</td>
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
@@ -538,20 +528,17 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                                 </button>
                               </td>
                               <td>{formatNumber(ref.rows.length)}</td>
-                              <td className="highlight-result">{formatNumber(ref.total)}</td>
                               <td>-</td>
+                              <td>{ref.rows[0]?.curva_completa ?? "-"}</td>
                               <td>-</td>
                               <td>{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0), 0))}</td>
-                              <td className="highlight-blue">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.saldo_inicial || 0) + Number(row.entrada_total || 0), 0))}</td>
                               <td className="highlight-pink">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.necessidade || 0), 0))}</td>
-                              <td className="highlight-blue">{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.entrada_total || 0), 0))}</td>
-                              <td className="highlight-amber">{formatNumber(ref.rows.reduce((acc, row) => acc + Math.max(0, Number(row.necessidade || 0) - Number(row.entrada_total || 0)), 0))}</td>
                               <td>{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.qtd_pendente_pedido || 0), 0))}</td>
                               <td>{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.qtd_transito || 0), 0))}</td>
                               <td>{formatNumber(ref.rows.reduce((acc, row) => acc + Number(row.qtd_ja_programada || 0), 0))}</td>
+                              <td className="highlight-result">{formatNumber(ref.total)}</td>
                               <td>-</td>
                               <td>-</td>
-                              <td>{ref.rows[0]?.curva_completa ?? "-"}</td>
                               <td>{ref.rows[0]?.status_produto ?? "-"}</td>
                               <td>{ref.rows[0]?.prioridade ?? "-"}</td>
                             </tr>
@@ -559,12 +546,11 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                               ? ref.rows.map((item) => {
                                   const memory = buildCalculationMemory(item);
                                   const currentCoverage = coverage(
-                                    Number(item.saldo_inicial || 0) + Number(item.entrada_total || 0),
+                                    Number(item.saldo_inicial || 0),
                                     Number(item.media_mensal || 0),
                                   );
                                   const projectedCoverage = coverage(
                                     Number(item.saldo_inicial || 0) +
-                                      Number(item.entrada_total || 0) +
                                       Number(item.qtd_ja_programada || 0) +
                                       Number(item.qtd_pedido || 0),
                                     Number(item.media_mensal || 0),
@@ -583,20 +569,17 @@ function PedidoMatrix({ pedido }: { pedido: PedidoReposicao }) {
                                       </span>
                                     </td>
                                     <td>1</td>
-                                    <td className="highlight-result">{formatNumber(item.qtd_pedido)}</td>
                                     <td>{formatDecimal(memory.media)}</td>
+                                    <td>{item.curva_completa}</td>
                                     <td>{formatNumber(memory.estMin)}</td>
                                     <td>{formatNumber(memory.saldo)}</td>
-                                    <td className="highlight-blue">{formatNumber(memory.saldo + memory.ent)}</td>
                                     <td className="highlight-pink">{formatNumber(memory.nec)}</td>
-                                    <td className="highlight-blue">{formatNumber(memory.ent)}</td>
-                                    <td className="highlight-amber">{formatNumber(memory.faltaBruta)}</td>
                                     <td>{formatNumber(memory.pendPedido)}</td>
                                     <td>{formatNumber(memory.transito)}</td>
                                     <td>{formatNumber(memory.jaProg)}</td>
+                                    <td className="highlight-result">{formatNumber(item.qtd_pedido)}</td>
                                     <td>{formatDecimal(currentCoverage)}m</td>
                                     <td>{formatDecimal(projectedCoverage)}m</td>
-                                    <td>{item.curva_completa}</td>
                                     <td>{item.status_produto ?? "-"}</td>
                                     <td>
                                       <StatusBadge value={item.prioridade} />
@@ -1339,7 +1322,7 @@ export default function ProcessoReposicaoPage() {
                 <tbody>
                   {selectedTotvsItems.map((item, index) => {
                     const memory = (item.calculationMemory ?? {}) as Record<string, unknown>;
-                    const memoryText = `Nec ${formatNumber(Number(memory.necessidade ?? 0))} - Ent ${formatNumber(Number(memory.entradaTotal ?? 0))} - Pend ${formatNumber(Number(memory.jaProgramado ?? 0))} = Ped ${formatNumber(Number(memory.pedidoFinal ?? item.quantity ?? 0))}`;
+                    const memoryText = `Nec ${formatNumber(Number(memory.necessidade ?? 0))} - Prog ${formatNumber(Number(memory.jaProgramado ?? 0))} = Ped ${formatNumber(Number(memory.pedidoFinal ?? item.quantity ?? 0))}`;
                     return (
                       <tr className="matrixSku" key={`${String(item.productCode)}-${index}`}>
                         <td>{String(item.reference ?? "-")}</td>

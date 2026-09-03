@@ -2291,14 +2291,11 @@ def processo_reposicao_query(
                 SUM(a.entrada_total) AS entrada_total,
                 GREATEST(
                     0,
-                    GREATEST(
-                        0,
-                        ROUND(
-                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
-                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
-                            0
-                        ) - SUM(a.saldo_inicial)
-                    ) - SUM(a.entrada_total)
+                    ROUND(
+                        COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial)
                 ) AS qtd_sugerida_bruta,
                 MAX(COALESCE(pp.qtd_pendente_pedido, 0)) AS qtd_pendente_pedido,
                 0::numeric AS qtd_transito,
@@ -2324,17 +2321,14 @@ def processo_reposicao_query(
                 ) AS necessidade_6m,
                 GREATEST(
                     0,
-                    GREATEST(
-                        0,
-                        ROUND(
-                            GREATEST(
-                                COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
-                                MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0))
-                            )
-                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
-                            0
-                        ) - SUM(a.saldo_inicial)
-                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                    ROUND(
+                        GREATEST(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                            MAX(COALESCE(m_calc.media_6m_sem_abr_mai, 0))
+                        )
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
                 ) AS qtd_sugerida_6m,
                 ROUND(
                     GREATEST(
@@ -2357,17 +2351,14 @@ def processo_reposicao_query(
                 ) AS necessidade_12m,
                 GREATEST(
                     0,
-                    GREATEST(
-                        0,
-                        ROUND(
-                            GREATEST(
-                                COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
-                                MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
-                            )
-                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
-                            0
-                        ) - SUM(a.saldo_inicial)
-                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                    ROUND(
+                        GREATEST(
+                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal)),
+                            MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
+                        )
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
                 ) AS qtd_sugerida_12m,
                 ROUND(
                     MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
@@ -2384,26 +2375,19 @@ def processo_reposicao_query(
                 ) AS necessidade_sem_ruptura,
                 GREATEST(
                     0,
-                    GREATEST(
-                        0,
-                        ROUND(
-                            MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
-                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
-                            0
-                        ) - SUM(a.saldo_inicial)
-                    ) - SUM(a.entrada_total) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                    ROUND(
+                        MAX(COALESCE(m_calc.media_12m_sem_ruptura, 0))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
                 ) AS qtd_sugerida_sem_ruptura,
                 GREATEST(
                     0,
-                    GREATEST(
-                        0,
-                        ROUND(
-                            COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
-                            * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
-                            0
-                        ) - SUM(a.saldo_inicial)
-                    ) - SUM(a.entrada_total)
-                    - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
+                    ROUND(
+                        COALESCE(NULLIF(MAX(COALESCE(m_calc.media_3m, 0)), 0), SUM(a.media_mensal))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(a.saldo_inicial) - MAX(COALESCE(pp.qtd_pendente_pedido, 0))
                 ) AS qtd_sugerida,
                 MAX(COALESCE(dp.prcpfabrica, 0)) AS original_price,
                 MAX(COALESCE(dp.prcpfabrica, 0)) AS price,
@@ -2542,7 +2526,7 @@ def processo_reposicao_resumo(
     if not month:
         month = date.today().strftime("%Y-%m")
     cache_params = {
-        "version": "processo_resumo_v5_12m_sem_ruptura",
+        "version": "processo_resumo_v6_sem_abater_entrada",
         "year": year,
         "month": month,
         "status_produto": status_produto,
@@ -2606,7 +2590,7 @@ def processo_reposicao_sugestao(
     if not month:
         month = date.today().strftime("%Y-%m")
     cache_params = {
-        "version": "processo_sugestao_v5_12m_sem_ruptura",
+        "version": "processo_sugestao_v6_sem_abater_entrada",
         "year": year,
         "month": month,
         "limit": limit,
@@ -2768,9 +2752,20 @@ def analise_media_12m_query(
                 MAX(m_calc.meses_excluidos_media_sem_ruptura) AS meses_excluidos_media_sem_ruptura,
                 MAX(m_calc.explicacao_media_12m) AS explicacao_media_12m,
                 MAX(m_calc.explicacao_media_sem_ruptura) AS explicacao_media_sem_ruptura,
-                SUM(COALESCE(a.estoque_minimo, 0)) AS estoque_minimo_antigo,
+                ROUND(
+                    SUM(COALESCE(a.media_mensal, 0))
+                    * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                    0
+                ) AS estoque_minimo_antigo,
                 SUM(COALESCE(a.saldo_inicial, 0)) AS saldo_inicial,
-                SUM(COALESCE(a.necessidade, 0)) AS necessidade_antiga,
+                GREATEST(
+                    0,
+                    ROUND(
+                        SUM(COALESCE(a.media_mensal, 0))
+                        * CASE WHEN MAX(a.curva_completa) IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
+                        0
+                    ) - SUM(COALESCE(a.saldo_inicial, 0))
+                ) AS necessidade_antiga,
                 SUM(COALESCE(a.entrada_total, 0)) AS entrada_total,
                 MAX(COALESCE(e.estoque_bruto, 0)) AS estoque_disponivel_cd
             FROM {table} a
@@ -2882,7 +2877,7 @@ def analise_media_12m_query(
                     ELSE 1.0
                 END AS multiplicador_curva,
                 ROUND(
-                    COALESCE(media_nova_12m, 0)
+                    GREATEST(COALESCE(media_antiga_3m, 0), COALESCE(media_nova_12m, 0))
                     * CASE WHEN curva_completa IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
                     0
                 ) AS estoque_minimo_12m
@@ -2969,7 +2964,7 @@ def analise_media_12m_impacto(
     if not relation_exists("public.mv_pcp_estoque_atual"):
         raise HTTPException(status_code=404, detail="View mv_pcp_estoque_atual ainda nao existe.")
     cache_params = {
-        "version": "media_12m_impacto_v3",
+        "version": "media_12m_impacto_v9_necessidade_antes_depois",
         "year": year,
         "month": month,
         "limit": limit,
@@ -3005,6 +3000,9 @@ def analise_media_12m_impacto(
             COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
             COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
             COALESCE(SUM(media_sem_ruptura_12m), 0) AS media_sem_ruptura_total,
+            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total,
             COALESCE((SELECT SUM(estoque_disponivel_cd_sku) FROM sku_capacidade), 0) AS estoque_cd_skus_gap,
             COALESCE((SELECT SUM(qtd_recuperavel_sku) FROM sku_capacidade), 0) AS qtd_recuperavel,
             COALESCE((SELECT SUM(deficit_pos_estoque_sku) FROM sku_capacidade), 0) AS deficit_pos_estoque
@@ -3055,15 +3053,52 @@ def analise_media_12m_impacto(
         """
         SELECT
             COALESCE(curva_completa, '') AS curva_completa,
+            COUNT(*) FILTER (WHERE necessidade_antiga > 0) AS skus_3m,
+            COUNT(*) FILTER (WHERE necessidade_12m > 0) AS skus_12m,
             COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
             COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
             COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
-            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
+            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
         FROM final
         GROUP BY curva_completa
         HAVING SUM(gap_necessidade) > 0
         """,
         "ORDER BY gap_pecas DESC",
+    )
+    por_curva_loja_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            COALESCE(curva_completa, '') AS curva_completa,
+            cd_loja,
+            nome_loja,
+            COUNT(*) FILTER (WHERE necessidade_antiga > 0) AS skus_3m,
+            COUNT(*) FILTER (WHERE necessidade_12m > 0) AS skus_12m,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
+            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+        FROM final
+        GROUP BY curva_completa, cd_loja, nome_loja
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY curva_completa, gap_estoque_minimo_total DESC, gap_pecas DESC",
     )
     rows_query = analise_media_12m_query(
         *common,
@@ -3143,6 +3178,7 @@ def analise_media_12m_impacto(
         "por_loja": fetch_all(por_loja_query, params),
         "por_referencia": fetch_all(por_referencia_query, params),
         "por_curva": fetch_all(por_curva_query, params),
+        "por_curva_loja": fetch_all(por_curva_loja_query, params),
         "rows": fetch_all(rows_query, params),
     }
     return set_painel_cache("media_12m_impacto", cache_params, payload)
@@ -3257,10 +3293,7 @@ def processo_reposicao_rows_for_order(
             )
             row["estoque_minimo"] = row.get("estoque_minimo_12m") or 0
             row["necessidade"] = row.get("necessidade_12m") or 0
-            row["qtd_sugerida_bruta"] = max(
-                0,
-                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
-            )
+            row["qtd_sugerida_bruta"] = float(row.get("necessidade") or 0)
             qtd = float(row.get("qtd_sugerida_12m") or 0)
         elif cenario_normalizado == "media6m":
             row["media_mensal"] = max(
@@ -3269,10 +3302,7 @@ def processo_reposicao_rows_for_order(
             )
             row["estoque_minimo"] = row.get("estoque_minimo_6m") or 0
             row["necessidade"] = row.get("necessidade_6m") or 0
-            row["qtd_sugerida_bruta"] = max(
-                0,
-                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
-            )
+            row["qtd_sugerida_bruta"] = float(row.get("necessidade") or 0)
             qtd = float(row.get("qtd_sugerida_6m") or 0)
         elif cenario_normalizado == "consideravel12m":
             row["media_mensal"] = max(
@@ -3281,10 +3311,7 @@ def processo_reposicao_rows_for_order(
             )
             row["estoque_minimo"] = row.get("estoque_minimo_12m") or 0
             row["necessidade"] = row.get("necessidade_12m") or 0
-            row["qtd_sugerida_bruta"] = max(
-                0,
-                float(row.get("necessidade") or 0) - float(row.get("entrada_total") or 0),
-            )
+            row["qtd_sugerida_bruta"] = float(row.get("necessidade") or 0)
             qtd = float(row.get("qtd_sugerida_sem_ruptura") or 0)
         else:
             qtd = float(row.get("qtd_sugerida") or 0)

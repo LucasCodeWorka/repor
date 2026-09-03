@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, BarChart3, PackageSearch, RefreshCw, Search, Store, Target, X } from "lucide-react";
+import { AlertTriangle, BarChart3, ChevronDown, ChevronRight, PackageSearch, RefreshCw, Search, Store, Target, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { MetricCard, formatNumber } from "../../components/cards/MetricCard";
 import { PageContainer } from "../../components/layout/PageContainer";
@@ -23,6 +23,9 @@ const emptyData: Media12mImpacto = {
     media_antiga_total: 0,
     media_12m_total: 0,
     media_sem_ruptura_total: 0,
+    estoque_minimo_3m_total: 0,
+    estoque_minimo_12m_total: 0,
+    gap_estoque_minimo_total: 0,
     estoque_cd_skus_gap: 0,
     qtd_recuperavel: 0,
     deficit_pos_estoque: 0,
@@ -30,6 +33,7 @@ const emptyData: Media12mImpacto = {
   por_loja: [],
   por_referencia: [],
   por_curva: [],
+  por_curva_loja: [],
   rows: [],
 };
 
@@ -45,6 +49,16 @@ function formatPercent(value: number | null | undefined) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   })}%`;
+}
+
+function formatSignedNumber(value: number | null | undefined) {
+  const numeric = Number(value || 0);
+  return `${numeric > 0 ? "+" : ""}${formatNumber(numeric)}`;
+}
+
+function formatSignedPercent(value: number | null | undefined) {
+  const numeric = Number(value || 0);
+  return `${numeric > 0 ? "+" : ""}${formatPercent(numeric)}`;
 }
 
 function mediaJumpPercent(row: Media12mImpactoRow) {
@@ -421,6 +435,7 @@ export default function Media12mImpactoPage() {
   const [search, setSearch] = useState("");
   const [diagnostico, setDiagnostico] = useState("TODOS");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedCurva, setExpandedCurva] = useState<string | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<Media12mImpactoRow | null>(null);
   const [matrixLevel, setMatrixLevel] = useState<MediaMatrixLevel>("sku");
 
@@ -456,6 +471,14 @@ export default function Media12mImpactoPage() {
   }, [data.rows, diagnostico, search]);
 
   const groupedRows = useMemo(() => groupMediaRows(filteredRows), [filteredRows]);
+  const lojasPorCurva = useMemo(() => {
+    const map = new Map<string, typeof data.por_curva_loja>();
+    for (const row of data.por_curva_loja) {
+      const key = row.curva_completa || "Sem curva";
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+    return map;
+  }, [data.por_curva_loja]);
 
   const biggestMediaJumps = useMemo(() => {
     return [...data.rows]
@@ -483,6 +506,10 @@ export default function Media12mImpactoPage() {
     data.resumo.media_12m_total > 0
       ? ((data.resumo.media_sem_ruptura_total - data.resumo.media_12m_total) / data.resumo.media_12m_total) * 100
       : 0;
+  const gapEstoqueMinimoPct =
+    data.resumo.estoque_minimo_3m_total > 0
+      ? (data.resumo.gap_estoque_minimo_total / data.resumo.estoque_minimo_3m_total) * 100
+      : data.resumo.estoque_minimo_12m_total > 0 ? 100 : 0;
 
   return (
     <PageContainer
@@ -526,17 +553,29 @@ export default function Media12mImpactoPage() {
             <span className="media12ScenarioLabel">Media 3m</span>
             <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_antiga_total)}</strong>
             <p className="media12ScenarioDesc">Total de pecas/mes pela regra atual</p>
+            <div className="media12ScenarioMeta">
+              <span>Estoque minimo geral</span>
+              <b>{formatNumber(data.resumo.estoque_minimo_3m_total)}</b>
+            </div>
           </article>
           <article className="media12ScenarioCard media12ScenarioActive">
-            <span className="media12ScenarioLabel">Media 12m Consideravel</span>
+            <span className="media12ScenarioLabel">Media 12m Protegida</span>
             <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_12m_total)}</strong>
             <p className="media12ScenarioDesc">Total de pecas/mes com meses consideraveis</p>
+            <div className="media12ScenarioMeta">
+              <span>Estoque minimo protegido</span>
+              <b>{formatNumber(data.resumo.estoque_minimo_12m_total)}</b>
+            </div>
             <em className="media12ScenarioBadge">Cenario ativo</em>
           </article>
           <article className="media12ScenarioCard">
-            <span className="media12ScenarioLabel">Media 12m Sem Ruptura</span>
-            <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_sem_ruptura_total)}</strong>
-            <p className="media12ScenarioDesc">Total de pecas/mes excluindo meses zerados</p>
+            <span className="media12ScenarioLabel">Dif. de Estoque Minimo</span>
+            <strong className="media12ScenarioValue">{formatSignedNumber(data.resumo.gap_estoque_minimo_total)}</strong>
+            <p className="media12ScenarioDesc">{formatSignedPercent(gapEstoqueMinimoPct)} contra a regra 3m</p>
+            <div className="media12ScenarioMeta">
+              <span>Media sem ruptura</span>
+              <b>{formatDecimal(data.resumo.media_sem_ruptura_total)}</b>
+            </div>
           </article>
         </div>
       </section>
@@ -587,12 +626,68 @@ export default function Media12mImpactoPage() {
         <div className="media12CurveGrid">
           {data.por_curva.map((row) => {
             const pct = row.gap_pecas > 0 ? (row.qtd_recuperavel / row.gap_pecas) * 100 : 0;
+            const estoqueGapPct =
+              Number(row.estoque_minimo_3m_total || 0) > 0
+                ? (Number(row.gap_estoque_minimo_total || 0) / Number(row.estoque_minimo_3m_total || 0)) * 100
+                : Number(row.estoque_minimo_12m_total || 0) > 0 ? 100 : 0;
+            const curvaKey = row.curva_completa || "Sem curva";
+            const lojas = lojasPorCurva.get(curvaKey) ?? [];
+            const isOpen = expandedCurva === curvaKey;
             return (
-              <article className="media12CurveCard" key={row.curva_completa || "sem-curva"}>
-                <span>{row.curva_completa || "Sem curva"}</span>
-                <strong>{formatNumber(row.gap_pecas)}</strong>
+              <article className="media12CurveCard" key={curvaKey}>
+                <button
+                  type="button"
+                  className="media12CurveToggle"
+                  onClick={() => setExpandedCurva((current) => (current === curvaKey ? null : curvaKey))}
+                >
+                  <span>{curvaKey}</span>
+                  {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+                <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
+            <p>Est. min. protegido vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
+                <div className="media12CurveMetrics">
+                  <small><b>{formatSignedNumber(row.gap_estoque_minimo_total)}</b> dif. est. min.</small>
+                  <small><b>{formatSignedPercent(estoqueGapPct)}</b> vs 3m</small>
+                  <small><b>{formatSignedNumber(row.gap_necessidade_total)}</b> dif. necessidade</small>
+                  <small><b>{formatPercent(pct)}</b> recuperavel</small>
+                </div>
                 <p>{formatNumber(row.skus_com_gap)} SKUs com gap · {formatNumber(row.ruptura_silenciosa)} silenciosos</p>
-                <em>{formatPercent(pct)} recuperavel</em>
+                <em>{formatNumber(lojas.length)} lojas para validar</em>
+                {isOpen ? (
+                  <div className="media12CurveStores">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Loja</th>
+                          <th>Est. min. 3m</th>
+                          <th>Est. min. prot.</th>
+                          <th>Dif.</th>
+                          <th>Nec. 3m</th>
+                          <th>Nec. 12m</th>
+                          <th>Dif. nec.</th>
+                          <th>SKUs gap</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lojas.map((loja) => (
+                          <tr key={`${curvaKey}-${loja.cd_loja}`}>
+                            <td>
+                              <span>{loja.cd_loja}</span>
+                              <strong title={loja.nome_loja}>{loja.nome_loja}</strong>
+                            </td>
+                            <td>{formatNumber(loja.estoque_minimo_3m_total)}</td>
+                            <td>{formatNumber(loja.estoque_minimo_12m_total)}</td>
+                            <td>{formatSignedNumber(loja.gap_estoque_minimo_total)}</td>
+                            <td>{formatNumber(loja.necessidade_3m_total)}</td>
+                            <td>{formatNumber(loja.necessidade_12m_total)}</td>
+                            <td>{formatSignedNumber(loja.gap_necessidade_total)}</td>
+                            <td>{formatNumber(loja.skus_com_gap)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
               </article>
             );
           })}
