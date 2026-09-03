@@ -663,7 +663,7 @@ export default function Media12mImpactoPage() {
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
                 <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
-                <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m, apenas SKUs afetados</p>
+                <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
                 <div className="media12CurveMetrics">
                   <small><b>{formatSignedNumber(perdaSilenciosa)} pecas</b> em {formatNumber(row.ruptura_silenciosa)} SKUs que o 3m nao pegava</small>
                   <small><b>{formatNumber(recuperavel)}</b> pecas recuperaveis agora ({formatPercent(recuperavelPct)})</small>
