@@ -1097,14 +1097,33 @@ h2 {
   padding: 7px 8px;
   border-bottom: 1px solid var(--line);
   text-align: right;
+  color: #1f2937;
   font-size: 11px;
+  font-weight: 700;
 }
 
 .media12CurveStores th {
-  color: var(--muted);
+  background: #e8eef7;
+  color: #334155;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.media12CurveStores tbody tr:not(.media12CurveRefRow):not(.media12CurveSkuRow) td {
+  background: #eef6ff;
+}
+
+.media12CurveStores td:nth-child(3) {
+  background: #edfdf7;
+  color: #047857;
+  font-weight: 900;
+}
+
+.media12CurveStores td:nth-child(8) {
+  background: #fff7ed;
+  color: #c2410c;
+  font-weight: 900;
 }
 
 .media12CurveStores th:first-child,
@@ -1134,12 +1153,12 @@ h2 {
 }
 
 .media12CurveRefRow td {
-  background: #f8fafc;
+  background: #fff9db;
 }
 
 .media12CurveSkuRow td {
   background: #ffffff;
-  color: var(--muted);
+  color: #334155;
 }
 
 .media12CurveSkuRow td:first-child {
