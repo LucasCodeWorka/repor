@@ -705,26 +705,29 @@ export default function Media12mImpactoPage() {
                                           <td>{formatSignedNumber(referencia.gap_necessidade_total)}</td>
                                           <td>{formatNumber(referencia.skus_com_gap)}</td>
                                         </tr>
-                                        {referenceOpen
-                                          ? skus.map((sku) => (
-                                              <tr className="media12CurveSkuRow" key={`${referenceKey}|${sku.cd_produto}`}>
-                                                <td>
-                                                  <span>{sku.cd_produto}</span>
-                                                  <strong title={`${sku.referencia} - ${sku.cor || "-"} - ${sku.tamanho || "-"}`}>
-                                                    {sku.referencia} / {sku.cor || "-"} / {sku.tamanho || "-"}
-                                                  </strong>
-                                                </td>
-                                                <td>{formatNumber(sku.estoque_minimo_3m_total)}</td>
-                                                <td>{formatNumber(sku.estoque_minimo_12m_total)}</td>
-                                                <td>{formatSignedNumber(sku.gap_estoque_minimo_total)}</td>
-                                                <td>{formatNumber(sku.saldo_total)}</td>
-                                                <td>{formatNumber(sku.necessidade_3m_total)}</td>
-                                                <td>{formatNumber(sku.necessidade_12m_total)}</td>
-                                                <td>{formatSignedNumber(sku.gap_necessidade_total)}</td>
-                                                <td>{formatNumber(sku.skus_com_gap)}</td>
-                                              </tr>
-                                            ))
-                                          : null}
+                                        {referenceOpen ? (
+                                          <tr className="media12CurveSkuRow">
+                                            <td colSpan={9}>
+                                              <div className="media12SkuGrid">
+                                                {skus.map((sku) => (
+                                                  <article className="media12SkuMiniCard" key={`${referenceKey}|${sku.cd_produto}`}>
+                                                    <div>
+                                                      <strong>{sku.cor || "-"} / {sku.tamanho || "-"}</strong>
+                                                      <span>SKU {sku.cd_produto}</span>
+                                                    </div>
+                                                    <dl>
+                                                      <div><dt>3m</dt><dd>{formatNumber(sku.estoque_minimo_3m_total)}</dd></div>
+                                                      <div><dt>12m</dt><dd>{formatNumber(sku.estoque_minimo_12m_total)}</dd></div>
+                                                      <div><dt>Saldo</dt><dd>{formatNumber(sku.saldo_total)}</dd></div>
+                                                      <div><dt>Nec.</dt><dd>{formatNumber(sku.necessidade_12m_total)}</dd></div>
+                                                      <div><dt>Perda</dt><dd>{formatSignedNumber(sku.gap_necessidade_total)}</dd></div>
+                                                    </dl>
+                                                  </article>
+                                                ))}
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ) : null}
                                       </Fragment>
                                     );
                                   })

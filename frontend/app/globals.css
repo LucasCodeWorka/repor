@@ -1157,12 +1157,73 @@ h2 {
 }
 
 .media12CurveSkuRow td {
-  background: #ffffff;
+  background: #f8fafc;
   color: #334155;
 }
 
 .media12CurveSkuRow td:first-child {
-  padding-left: 42px;
+  padding: 10px 12px 12px 42px;
+}
+
+.media12SkuGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.media12SkuMiniCard {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.media12SkuMiniCard > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.media12SkuMiniCard strong {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.media12SkuMiniCard span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.media12SkuMiniCard dl {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+}
+
+.media12SkuMiniCard div,
+.media12SkuMiniCard dt,
+.media12SkuMiniCard dd {
+  min-width: 0;
+}
+
+.media12SkuMiniCard dt {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.media12SkuMiniCard dd {
+  margin: 2px 0 0;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .media12CurveStores td:first-child strong,
