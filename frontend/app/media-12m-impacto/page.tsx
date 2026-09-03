@@ -85,12 +85,10 @@ function sizeRank(size: string | null | undefined) {
 function summarizeRows(rows: Media12mImpactoRow[]) {
   const media3 = rows.reduce((sum, row) => sum + Number(row.media_antiga_3m || 0), 0);
   const media12 = rows.reduce((sum, row) => sum + Number(row.media_nova_12m || 0), 0);
-  const mediaSemRuptura = rows.reduce((sum, row) => sum + Number(row.media_sem_ruptura_12m || 0), 0);
   return {
     skus: rows.length,
     media3,
     media12,
-    mediaSemRuptura,
     salto: media3 > 0 ? ((media12 - media3) / media3) * 100 : media12 > 0 ? null : 0,
     necessidadeAntiga: rows.reduce((sum, row) => sum + Number(row.necessidade_antiga || 0), 0),
     necessidade12m: rows.reduce((sum, row) => sum + Number(row.necessidade_12m || 0), 0),
@@ -213,16 +211,11 @@ function SkuDetail({ row }: { row: Media12mImpactoRow }) {
       <span>{media3Formula}</span>
       <span>Meses: {row.meses_utilizados_media_3m || "-"}</span>
       <span>Valores: {row.valores_utilizados_media_3m || "-"}</span>
-      <strong>Media 12m consideravel</strong>
-      <span>{row.formula_media_nova || "Formula 12m indisponivel"}</span>
-      <span>Meses: {row.meses_utilizados_media || "-"}</span>
-      <span>Valores: {row.valores_utilizados_media || "-"}</span>
-      <span className="media12RuleNote">{row.explicacao_media_12m || "Regra base indisponivel."}</span>
-      <strong>Media 12m sem ruptura</strong>
-      <span>{row.formula_media_sem_ruptura || "Formula sem ruptura indisponivel"}</span>
+      <strong>Media 12m</strong>
+      <span>{row.formula_media_sem_ruptura || "Formula 12m indisponivel"}</span>
       <span>Meses: {row.meses_utilizados_media_sem_ruptura || "-"}</span>
       <span>Valores: {row.valores_utilizados_media_sem_ruptura || "-"}</span>
-      <span className="media12RuleNote">{row.explicacao_media_sem_ruptura || "Regra sem ruptura indisponivel."}</span>
+      <span className="media12RuleNote">{row.explicacao_media_sem_ruptura || "Regra 12m indisponivel."}</span>
     </div>
   );
 }
@@ -238,7 +231,6 @@ function MediaJumpCard({
 }) {
   const oldMedia = Number(row.media_antiga_3m || 0);
   const newMedia = Number(row.media_nova_12m || 0);
-  const noRuptureMedia = Number(row.media_sem_ruptura_12m || 0);
   const gapMedia = Math.max(0, newMedia - oldMedia);
   const pct = mediaJumpPercent(row);
 
@@ -268,10 +260,6 @@ function MediaJumpCard({
         <span>
           <small>Media 12m</small>
           <b>{formatDecimal(newMedia)}</b>
-        </span>
-        <span>
-          <small>Sem ruptura</small>
-          <b>{formatDecimal(noRuptureMedia)}</b>
         </span>
         <span>
           <small>Salto</small>
@@ -350,35 +338,8 @@ function MediaMemoryModal({ row, onClose }: { row: Media12mImpactoRow; onClose: 
           </article>
 
           <article>
-            <h3>Media consideravel 12m</h3>
+            <h3>Media 12m</h3>
             <strong>{formatDecimal(row.media_nova_12m)}</strong>
-            <dl>
-              <div>
-                <dt>Formula</dt>
-                <dd>{row.formula_media_nova || "Formula indisponivel"}</dd>
-              </div>
-              <div>
-                <dt>Meses usados</dt>
-                <dd>{row.meses_utilizados_media || "-"}</dd>
-              </div>
-              <div>
-                <dt>Valores usados</dt>
-                <dd>{row.valores_utilizados_media || "-"}</dd>
-              </div>
-              <div>
-                <dt>Meses considerados</dt>
-                <dd>{formatNumber(row.meses_considerados)}</dd>
-              </div>
-              <div>
-                <dt>Regra aplicada</dt>
-                <dd>{row.explicacao_media_12m || "Regra base indisponivel."}</dd>
-              </div>
-            </dl>
-          </article>
-
-          <article>
-            <h3>Media sem ruptura 12m</h3>
-            <strong>{formatDecimal(row.media_sem_ruptura_12m)}</strong>
             <dl>
               <div>
                 <dt>Formula</dt>
@@ -397,12 +358,12 @@ function MediaMemoryModal({ row, onClose }: { row: Media12mImpactoRow; onClose: 
                 <dd>{formatNumber(row.meses_considerados_sem_ruptura)}</dd>
               </div>
               <div>
-                <dt>Meses removidos</dt>
+                <dt>Meses de ruptura removidos</dt>
                 <dd>{row.meses_excluidos_media_sem_ruptura || "Nenhum mes removido."}</dd>
               </div>
               <div>
                 <dt>Regra aplicada</dt>
-                <dd>{row.explicacao_media_sem_ruptura || "Regra sem ruptura indisponivel."}</dd>
+                <dd>{row.explicacao_media_sem_ruptura || "Regra 12m indisponivel."}</dd>
               </div>
             </dl>
           </article>
@@ -522,10 +483,6 @@ export default function Media12mImpactoPage() {
     data.resumo.media_antiga_total > 0
       ? ((data.resumo.media_12m_total - data.resumo.media_antiga_total) / data.resumo.media_antiga_total) * 100
       : 0;
-  const reducaoSemRuptura =
-    data.resumo.media_12m_total > 0
-      ? ((data.resumo.media_sem_ruptura_total - data.resumo.media_12m_total) / data.resumo.media_12m_total) * 100
-      : 0;
   const gapEstoqueMinimoPct =
     data.resumo.estoque_minimo_3m_total > 0
       ? (data.resumo.gap_estoque_minimo_total / data.resumo.estoque_minimo_3m_total) * 100
@@ -535,7 +492,7 @@ export default function Media12mImpactoPage() {
     <PageContainer
       eyebrow="Media 12m"
       title="Impacto da Regra 12m"
-      description={`Comparativo entre a media atual de 3 meses e a media 12m consideravel para ${CURRENT_MONTH}, com capacidade de recuperacao pelo estoque atual do CD.`}
+      description={`Comparativo entre a media atual de 3 meses e a media 12m para ${CURRENT_MONTH}, com capacidade de recuperacao pelo estoque atual do CD.`}
       actions={
         <button type="button" onClick={loadData} disabled={loading}>
           <RefreshCw size={17} />
@@ -558,7 +515,6 @@ export default function Media12mImpactoPage() {
         <MetricCard title="Gap de pecas" value={data.resumo.gap_pecas} subtitle="Necessidade adicional 12m" tone="pink" icon={<Target size={17} />} />
         <MetricCard title="Recuperavel agora" value={data.resumo.qtd_recuperavel} subtitle={`${formatPercent(recuperavelPct)} do gap`} tone="green" icon={<PackageSearch size={17} />} />
         <MetricCard title="Media 12m vs 3m" value={formatPercent(incrementoMedia)} subtitle="Aumento da demanda lida" tone="blue" />
-        <MetricCard title="Media sem ruptura" value={formatPercent(reducaoSemRuptura)} subtitle="Variacao contra media 12m" tone="green" />
       </section>
 
       <section className="panel media12ScenarioPanel">
@@ -579,9 +535,9 @@ export default function Media12mImpactoPage() {
             </div>
           </article>
           <article className="media12ScenarioCard media12ScenarioActive">
-            <span className="media12ScenarioLabel">Media 12m Protegida</span>
+            <span className="media12ScenarioLabel">Media 12m</span>
             <strong className="media12ScenarioValue">{formatDecimal(data.resumo.media_12m_total)}</strong>
-            <p className="media12ScenarioDesc">Total de pecas/mes com meses consideraveis</p>
+            <p className="media12ScenarioDesc">Total de pecas/mes com meses de ruptura removidos</p>
             <div className="media12ScenarioMeta">
               <span>Estoque minimo protegido</span>
               <b>{formatNumber(data.resumo.estoque_minimo_12m_total)}</b>
@@ -593,8 +549,8 @@ export default function Media12mImpactoPage() {
             <strong className="media12ScenarioValue">{formatSignedNumber(data.resumo.gap_estoque_minimo_total)}</strong>
             <p className="media12ScenarioDesc">{formatSignedPercent(gapEstoqueMinimoPct)} contra a regra 3m</p>
             <div className="media12ScenarioMeta">
-              <span>Media sem ruptura</span>
-              <b>{formatDecimal(data.resumo.media_sem_ruptura_total)}</b>
+              <span>Media ativa</span>
+              <b>12m</b>
             </div>
           </article>
         </div>
@@ -837,8 +793,7 @@ export default function Media12mImpactoPage() {
                 <th>Curva</th>
                 <th>Diagnostico</th>
                 <th>Media 3m</th>
-                <th>Media 12m atual</th>
-                <th>Media 12m s/ ruptura</th>
+                <th>Media 12m</th>
                 <th>Salto</th>
                 <th>Nec. atual</th>
                 <th>Nec. 12m</th>
@@ -858,7 +813,6 @@ export default function Media12mImpactoPage() {
                     </td>
                     <td>{formatDecimal(loja.totals.media3)}</td>
                     <td>{formatDecimal(loja.totals.media12)}</td>
-                    <td>{formatDecimal(loja.totals.mediaSemRuptura)}</td>
                     <td>{formatJumpPercent(loja.totals.salto)}</td>
                     <td>{formatNumber(loja.totals.necessidadeAntiga)}</td>
                     <td>{formatNumber(loja.totals.necessidade12m)}</td>
@@ -876,7 +830,6 @@ export default function Media12mImpactoPage() {
                         </td>
                         <td>{formatDecimal(curva.totals.media3)}</td>
                         <td>{formatDecimal(curva.totals.media12)}</td>
-                        <td>{formatDecimal(curva.totals.mediaSemRuptura)}</td>
                         <td>{formatJumpPercent(curva.totals.salto)}</td>
                         <td>{formatNumber(curva.totals.necessidadeAntiga)}</td>
                         <td>{formatNumber(curva.totals.necessidade12m)}</td>
@@ -894,7 +847,6 @@ export default function Media12mImpactoPage() {
                             </td>
                             <td>{formatDecimal(referencia.totals.media3)}</td>
                             <td>{formatDecimal(referencia.totals.media12)}</td>
-                            <td>{formatDecimal(referencia.totals.mediaSemRuptura)}</td>
                             <td>{formatJumpPercent(referencia.totals.salto)}</td>
                             <td>{formatNumber(referencia.totals.necessidadeAntiga)}</td>
                             <td>{formatNumber(referencia.totals.necessidade12m)}</td>
@@ -919,7 +871,6 @@ export default function Media12mImpactoPage() {
                                   <td><em className={statusClass(row.diagnostico)}>{row.diagnostico}</em></td>
                                   <td>{formatDecimal(row.media_antiga_3m)}</td>
                                   <td>{formatDecimal(row.media_nova_12m)}</td>
-                                  <td>{formatDecimal(row.media_sem_ruptura_12m)}</td>
                                   <td>{formatJumpPercent(mediaJumpPercent(row))}</td>
                                   <td>{formatNumber(row.necessidade_antiga)}</td>
                                   <td>{formatNumber(row.necessidade_12m)}</td>

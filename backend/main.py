@@ -2734,7 +2734,7 @@ def analise_media_12m_query(
                 MAX(a.curva_completa) AS curva_completa,
                 SUM(COALESCE(a.vendas_3m, 0)) AS vendas_3m,
                 SUM(COALESCE(a.media_mensal, 0)) AS media_antiga_3m,
-                MAX(COALESCE(m_calc.media_nova_12m, 0)) AS media_nova_12m,
+                MAX(COALESCE(m_calc.media_sem_ruptura_12m, 0)) AS media_nova_12m,
                 MAX(COALESCE(m_calc.media_bruta_12m, 0)) AS media_bruta_12m,
                 MAX(COALESCE(m_calc.media_sem_ruptura_12m, 0)) AS media_sem_ruptura_12m,
                 MAX(COALESCE(m_calc.venda_12m_considerada, 0)) AS venda_12m_considerada,
@@ -2852,12 +2852,12 @@ def analise_media_12m_query(
                     END AS explicacao_media_12m,
                     CASE
                         WHEN meses_considerados_sem_ruptura > 0 AND meses_excluidos_media_sem_ruptura IS NOT NULL
-                            THEN 'Regra sem ruptura: parte da media 12m e remove meses em que venda do mes consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
+                            THEN 'Regra 12m: remove meses em que a venda consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
                         WHEN meses_considerados_sem_ruptura > 0
-                            THEN 'Regra sem ruptura: nenhum mes da media 12m foi removido, porque a venda ficou abaixo do estoque disponivel em todos os meses usados.'
+                            THEN 'Regra 12m: nenhum mes foi removido, porque a venda ficou abaixo do estoque disponivel em todos os meses usados.'
                         WHEN meses_excluidos_media_sem_ruptura IS NOT NULL
-                            THEN 'Regra sem ruptura: todos os meses da media 12m foram removidos porque a venda consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
-                        ELSE 'Regra sem ruptura: nao houve mes consideravel para calcular.'
+                            THEN 'Regra 12m: todos os meses foram removidos porque a venda consumiu todo o estoque disponivel. Removidos: ' || meses_excluidos_media_sem_ruptura || '.'
+                        ELSE 'Regra 12m: nao houve mes valido para calcular.'
                     END AS explicacao_media_sem_ruptura
                 FROM agregado
             ) m_calc ON TRUE
@@ -2877,7 +2877,7 @@ def analise_media_12m_query(
                     ELSE 1.0
                 END AS multiplicador_curva,
                 ROUND(
-                    GREATEST(COALESCE(media_antiga_3m, 0), COALESCE(media_nova_12m, 0))
+                    GREATEST(COALESCE(media_antiga_3m, 0), COALESCE(media_sem_ruptura_12m, 0))
                     * CASE WHEN curva_completa IN ('CURVA A', 'CURVA AA') THEN 1.5 ELSE 1.0 END,
                     0
                 ) AS estoque_minimo_12m
@@ -2886,7 +2886,7 @@ def analise_media_12m_query(
         gaps AS (
             SELECT
                 *,
-                GREATEST(0, COALESCE(media_nova_12m, 0) - COALESCE(media_antiga_3m, 0)) AS gap_media,
+                GREATEST(0, COALESCE(media_sem_ruptura_12m, 0) - COALESCE(media_antiga_3m, 0)) AS gap_media,
                 GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0)) AS necessidade_12m,
                 GREATEST(
                     0,
@@ -2894,11 +2894,11 @@ def analise_media_12m_query(
                     - COALESCE(necessidade_antiga, 0)
                 ) AS gap_necessidade,
                 CASE
-                    WHEN COALESCE(media_nova_12m, 0) <= 0 THEN 'SEM DEMANDA 12M'
+                    WHEN COALESCE(media_sem_ruptura_12m, 0) <= 0 THEN 'SEM DEMANDA 12M'
                     WHEN COALESCE(necessidade_antiga, 0) <= 0
                          AND GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0)) > 0
                         THEN 'RUPTURA SILENCIOSA'
-                    WHEN COALESCE(media_nova_12m, 0) > COALESCE(media_antiga_3m, 0) * 1.25
+                    WHEN COALESCE(media_sem_ruptura_12m, 0) > COALESCE(media_antiga_3m, 0) * 1.25
                          AND GREATEST(
                              0,
                              GREATEST(0, COALESCE(estoque_minimo_12m, 0) - COALESCE(saldo_inicial, 0))
@@ -2937,8 +2937,8 @@ def analise_media_12m_query(
                     )
                 END AS qtd_recuperavel_rateada,
                 CASE
-                    WHEN COALESCE(g.media_nova_12m, 0) <= 0 THEN 0
-                    ELSE ROUND((COALESCE(g.saldo_inicial, 0) + COALESCE(g.estoque_disponivel_cd, 0)) / NULLIF(g.media_nova_12m, 0), 2)
+                    WHEN COALESCE(g.media_sem_ruptura_12m, 0) <= 0 THEN 0
+                    ELSE ROUND((COALESCE(g.saldo_inicial, 0) + COALESCE(g.estoque_disponivel_cd, 0)) / NULLIF(g.media_sem_ruptura_12m, 0), 2)
                 END AS cobertura_potencial_meses
             FROM gaps g
             LEFT JOIN sku_capacidade s
@@ -2964,7 +2964,7 @@ def analise_media_12m_impacto(
     if not relation_exists("public.mv_pcp_estoque_atual"):
         raise HTTPException(status_code=404, detail="View mv_pcp_estoque_atual ainda nao existe.")
     cache_params = {
-        "version": "media_12m_impacto_v13_totais_com_saldo",
+        "version": "media_12m_impacto_v14_12m_sem_ruptura",
         "year": year,
         "month": month,
         "limit": limit,
