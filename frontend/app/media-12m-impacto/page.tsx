@@ -645,11 +645,9 @@ export default function Media12mImpactoPage() {
         </div>
         <div className="media12CurveGrid">
           {data.por_curva.map((row) => {
-            const pct = row.gap_pecas > 0 ? (row.qtd_recuperavel / row.gap_pecas) * 100 : 0;
-            const estoqueGapPct =
-              Number(row.estoque_minimo_3m_total || 0) > 0
-                ? (Number(row.gap_estoque_minimo_total || 0) / Number(row.estoque_minimo_3m_total || 0)) * 100
-                : Number(row.estoque_minimo_12m_total || 0) > 0 ? 100 : 0;
+            const perda3m = Number(row.gap_necessidade_total || 0);
+            const recuperavel = Number(row.qtd_recuperavel || 0);
+            const recuperavelPct = perda3m > 0 ? (recuperavel / perda3m) * 100 : 0;
             const curvaKey = row.curva_completa || "Sem curva";
             const lojas = lojasPorCurva.get(curvaKey) ?? [];
             const isOpen = expandedCurva === curvaKey;
@@ -666,12 +664,11 @@ export default function Media12mImpactoPage() {
                 <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
                 <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
                 <div className="media12CurveMetrics">
-                  <small><b>{formatSignedNumber(row.gap_estoque_minimo_total)}</b> dif. est. min.</small>
-                  <small><b>{formatSignedPercent(estoqueGapPct)}</b> vs 3m</small>
-                  <small><b>{formatSignedNumber(row.gap_necessidade_total)}</b> perda 3m</small>
-                  <small><b>{formatPercent(pct)}</b> recuperavel</small>
+                  <small><b>{formatSignedNumber(perda3m)}</b> pecas que o 3m nao pediria</small>
+                  <small><b>{formatNumber(recuperavel)}</b> pecas recuperaveis agora ({formatPercent(recuperavelPct)})</small>
+                  <small><b>{formatNumber(row.skus_com_gap)}</b> SKUs com necessidade maior no 12m</small>
+                  <small><b>{formatNumber(row.ruptura_silenciosa)}</b> SKUs que o 3m nao pegava</small>
                 </div>
-                <p>{formatNumber(row.skus_com_gap)} SKUs afetados - {formatNumber(row.ruptura_silenciosa)} silenciosos</p>
                 <em>{formatNumber(lojas.length)} lojas para validar</em>
                 {isOpen ? (
                   <div className="media12CurveStores">
