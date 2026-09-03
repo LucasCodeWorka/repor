@@ -390,6 +390,17 @@ export type Media12mImpactoCurvaLoja = Media12mImpactoCurva & {
   nome_loja: string;
 };
 
+export type Media12mImpactoCurvaLojaReferencia = Media12mImpactoCurvaLoja & {
+  referencia: string;
+  descricao_produto: string;
+};
+
+export type Media12mImpactoCurvaLojaSku = Media12mImpactoCurvaLojaReferencia & {
+  cd_produto: number;
+  cor: string;
+  tamanho: string;
+};
+
 export type Media12mImpactoRow = {
   mes: string;
   cd_loja: number;
@@ -450,6 +461,8 @@ export type Media12mImpacto = {
   por_referencia: Media12mImpactoReferencia[];
   por_curva: Media12mImpactoCurva[];
   por_curva_loja: Media12mImpactoCurvaLoja[];
+  por_curva_loja_referencia: Media12mImpactoCurvaLojaReferencia[];
+  por_curva_loja_sku: Media12mImpactoCurvaLojaSku[];
   rows: Media12mImpactoRow[];
 };
 

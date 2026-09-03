@@ -1108,6 +1108,35 @@ h2 {
   border-bottom: 0;
 }
 
+.media12CurveStoreButton {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.media12CurveStoreButton.nested {
+  padding-left: 18px;
+}
+
+.media12CurveRefRow td {
+  background: #f8fafc;
+}
+
+.media12CurveSkuRow td {
+  background: #ffffff;
+  color: var(--muted);
+}
+
+.media12CurveSkuRow td:first-child {
+  padding-left: 42px;
+}
+
 .media12CurveStores td:first-child strong,
 .media12CurveStores td:first-child span {
   display: inline-flex;

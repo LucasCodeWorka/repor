@@ -2964,7 +2964,7 @@ def analise_media_12m_impacto(
     if not relation_exists("public.mv_pcp_estoque_atual"):
         raise HTTPException(status_code=404, detail="View mv_pcp_estoque_atual ainda nao existe.")
     cache_params = {
-        "version": "media_12m_impacto_v9_necessidade_antes_depois",
+        "version": "media_12m_impacto_v10_drilldown_ref_sku",
         "year": year,
         "month": month,
         "limit": limit,
@@ -3100,6 +3100,67 @@ def analise_media_12m_impacto(
         """,
         "ORDER BY curva_completa, gap_estoque_minimo_total DESC, gap_pecas DESC",
     )
+    por_curva_loja_referencia_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            COALESCE(curva_completa, '') AS curva_completa,
+            cd_loja,
+            nome_loja,
+            referencia,
+            MAX(descricao_produto) AS descricao_produto,
+            COUNT(*) FILTER (WHERE necessidade_antiga > 0) AS skus_3m,
+            COUNT(*) FILTER (WHERE necessidade_12m > 0) AS skus_12m,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
+            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+        FROM final
+        GROUP BY curva_completa, cd_loja, nome_loja, referencia
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY curva_completa, cd_loja, gap_necessidade_total DESC, referencia",
+    )
+    por_curva_loja_sku_query = analise_media_12m_query(
+        *common,
+        """
+        SELECT
+            COALESCE(curva_completa, '') AS curva_completa,
+            cd_loja,
+            nome_loja,
+            referencia,
+            MAX(descricao_produto) AS descricao_produto,
+            cd_produto,
+            cor,
+            tamanho,
+            COUNT(*) FILTER (WHERE necessidade_antiga > 0) AS skus_3m,
+            COUNT(*) FILTER (WHERE necessidade_12m > 0) AS skus_12m,
+            COUNT(*) FILTER (WHERE gap_necessidade > 0) AS skus_com_gap,
+            COUNT(*) FILTER (WHERE diagnostico = 'RUPTURA SILENCIOSA') AS ruptura_silenciosa,
+            COALESCE(SUM(gap_necessidade), 0) AS gap_pecas,
+            COALESCE(SUM(qtd_recuperavel_rateada), 0) AS qtd_recuperavel,
+            COALESCE(SUM(media_antiga_3m), 0) AS media_antiga_total,
+            COALESCE(SUM(media_nova_12m), 0) AS media_12m_total,
+            COALESCE(SUM(necessidade_antiga), 0) AS necessidade_3m_total,
+            COALESCE(SUM(necessidade_12m), 0) AS necessidade_12m_total,
+            COALESCE(SUM(necessidade_12m - necessidade_antiga), 0) AS gap_necessidade_total,
+            COALESCE(SUM(estoque_minimo_antigo), 0) AS estoque_minimo_3m_total,
+            COALESCE(SUM(estoque_minimo_12m), 0) AS estoque_minimo_12m_total,
+            COALESCE(SUM(estoque_minimo_12m - estoque_minimo_antigo), 0) AS gap_estoque_minimo_total
+        FROM final
+        GROUP BY curva_completa, cd_loja, nome_loja, referencia, cd_produto, cor, tamanho
+        HAVING SUM(gap_necessidade) > 0
+        """,
+        "ORDER BY curva_completa, cd_loja, referencia, cor, tamanho, gap_necessidade_total DESC",
+    )
     rows_query = analise_media_12m_query(
         *common,
         """
@@ -3179,6 +3240,8 @@ def analise_media_12m_impacto(
         "por_referencia": fetch_all(por_referencia_query, params),
         "por_curva": fetch_all(por_curva_query, params),
         "por_curva_loja": fetch_all(por_curva_loja_query, params),
+        "por_curva_loja_referencia": fetch_all(por_curva_loja_referencia_query, params),
+        "por_curva_loja_sku": fetch_all(por_curva_loja_sku_query, params),
         "rows": fetch_all(rows_query, params),
     }
     return set_painel_cache("media_12m_impacto", cache_params, payload)

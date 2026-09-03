@@ -34,6 +34,8 @@ const emptyData: Media12mImpacto = {
   por_referencia: [],
   por_curva: [],
   por_curva_loja: [],
+  por_curva_loja_referencia: [],
+  por_curva_loja_sku: [],
   rows: [],
 };
 
@@ -436,6 +438,8 @@ export default function Media12mImpactoPage() {
   const [diagnostico, setDiagnostico] = useState("TODOS");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedCurva, setExpandedCurva] = useState<string | null>(null);
+  const [expandedCurveStore, setExpandedCurveStore] = useState<string | null>(null);
+  const [expandedCurveReference, setExpandedCurveReference] = useState<string | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<Media12mImpactoRow | null>(null);
   const [matrixLevel, setMatrixLevel] = useState<MediaMatrixLevel>("sku");
 
@@ -479,6 +483,22 @@ export default function Media12mImpactoPage() {
     }
     return map;
   }, [data.por_curva_loja]);
+  const referenciasPorCurvaLoja = useMemo(() => {
+    const map = new Map<string, typeof data.por_curva_loja_referencia>();
+    for (const row of data.por_curva_loja_referencia) {
+      const key = `${row.curva_completa || "Sem curva"}|${row.cd_loja}`;
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+    return map;
+  }, [data.por_curva_loja_referencia]);
+  const skusPorCurvaLojaReferencia = useMemo(() => {
+    const map = new Map<string, typeof data.por_curva_loja_sku>();
+    for (const row of data.por_curva_loja_sku) {
+      const key = `${row.curva_completa || "Sem curva"}|${row.cd_loja}|${row.referencia}`;
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+    return map;
+  }, [data.por_curva_loja_sku]);
 
   const biggestMediaJumps = useMemo(() => {
     return [...data.rows]
@@ -619,7 +639,7 @@ export default function Media12mImpactoPage() {
         <div className="panelHeader">
           <div>
             <h2>Diagnostico por Curva</h2>
-            <p>Mostra se o problema esta concentrado nos produtos que deveriam ter maior protecao.</p>
+            <p>Mostra se o problema esta concentrado nos produtos que deveriam ter maior protecao. Perda 3m = pecas que a regra antiga deixaria de pedir.</p>
           </div>
           <span className="badge">{data.por_curva.length} curvas</span>
         </div>
@@ -644,14 +664,14 @@ export default function Media12mImpactoPage() {
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
                 <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
-            <p>Est. min. protegido vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
+                <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
                 <div className="media12CurveMetrics">
                   <small><b>{formatSignedNumber(row.gap_estoque_minimo_total)}</b> dif. est. min.</small>
                   <small><b>{formatSignedPercent(estoqueGapPct)}</b> vs 3m</small>
-                  <small><b>{formatSignedNumber(row.gap_necessidade_total)}</b> dif. necessidade</small>
+                  <small><b>{formatSignedNumber(row.gap_necessidade_total)}</b> perda 3m</small>
                   <small><b>{formatPercent(pct)}</b> recuperavel</small>
                 </div>
-                <p>{formatNumber(row.skus_com_gap)} SKUs com gap · {formatNumber(row.ruptura_silenciosa)} silenciosos</p>
+                <p>{formatNumber(row.skus_com_gap)} SKUs afetados - {formatNumber(row.ruptura_silenciosa)} silenciosos</p>
                 <em>{formatNumber(lojas.length)} lojas para validar</em>
                 {isOpen ? (
                   <div className="media12CurveStores">
@@ -659,31 +679,100 @@ export default function Media12mImpactoPage() {
                       <thead>
                         <tr>
                           <th>Loja</th>
-                          <th>Est. min. 3m</th>
-                          <th>Est. min. prot.</th>
-                          <th>Dif.</th>
+                          <th>3m</th>
+                          <th>12m</th>
+                          <th>Dif. est.</th>
                           <th>Nec. 3m</th>
                           <th>Nec. 12m</th>
-                          <th>Dif. nec.</th>
-                          <th>SKUs gap</th>
+                          <th>Perda 3m</th>
+                          <th>SKUs afetados</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {lojas.map((loja) => (
-                          <tr key={`${curvaKey}-${loja.cd_loja}`}>
-                            <td>
-                              <span>{loja.cd_loja}</span>
-                              <strong title={loja.nome_loja}>{loja.nome_loja}</strong>
-                            </td>
-                            <td>{formatNumber(loja.estoque_minimo_3m_total)}</td>
-                            <td>{formatNumber(loja.estoque_minimo_12m_total)}</td>
-                            <td>{formatSignedNumber(loja.gap_estoque_minimo_total)}</td>
-                            <td>{formatNumber(loja.necessidade_3m_total)}</td>
-                            <td>{formatNumber(loja.necessidade_12m_total)}</td>
-                            <td>{formatSignedNumber(loja.gap_necessidade_total)}</td>
-                            <td>{formatNumber(loja.skus_com_gap)}</td>
-                          </tr>
-                        ))}
+                        {lojas.map((loja) => {
+                          const storeKey = `${curvaKey}|${loja.cd_loja}`;
+                          const referencias = referenciasPorCurvaLoja.get(storeKey) ?? [];
+                          const storeOpen = expandedCurveStore === storeKey;
+                          return (
+                            <Fragment key={storeKey}>
+                              <tr>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="media12CurveStoreButton"
+                                    onClick={() => {
+                                      setExpandedCurveStore((current) => (current === storeKey ? null : storeKey));
+                                      setExpandedCurveReference(null);
+                                    }}
+                                  >
+                                    {storeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    <span>{loja.cd_loja}</span>
+                                    <strong title={loja.nome_loja}>{loja.nome_loja}</strong>
+                                  </button>
+                                </td>
+                                <td>{formatNumber(loja.estoque_minimo_3m_total)}</td>
+                                <td>{formatNumber(loja.estoque_minimo_12m_total)}</td>
+                                <td>{formatSignedNumber(loja.gap_estoque_minimo_total)}</td>
+                                <td>{formatNumber(loja.necessidade_3m_total)}</td>
+                                <td>{formatNumber(loja.necessidade_12m_total)}</td>
+                                <td>{formatSignedNumber(loja.gap_necessidade_total)}</td>
+                                <td>{formatNumber(loja.skus_com_gap)}</td>
+                              </tr>
+                              {storeOpen
+                                ? referencias.map((referencia) => {
+                                    const referenceKey = `${storeKey}|${referencia.referencia}`;
+                                    const skus = skusPorCurvaLojaReferencia.get(referenceKey) ?? [];
+                                    const referenceOpen = expandedCurveReference === referenceKey;
+                                    return (
+                                      <Fragment key={referenceKey}>
+                                        <tr className="media12CurveRefRow">
+                                          <td>
+                                            <button
+                                              type="button"
+                                              className="media12CurveStoreButton nested"
+                                              onClick={() => setExpandedCurveReference((current) => (current === referenceKey ? null : referenceKey))}
+                                            >
+                                              {referenceOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                              <span>REF</span>
+                                              <strong title={`${referencia.referencia} - ${referencia.descricao_produto}`}>
+                                                {referencia.referencia} - {referencia.descricao_produto}
+                                              </strong>
+                                            </button>
+                                          </td>
+                                          <td>{formatNumber(referencia.estoque_minimo_3m_total)}</td>
+                                          <td>{formatNumber(referencia.estoque_minimo_12m_total)}</td>
+                                          <td>{formatSignedNumber(referencia.gap_estoque_minimo_total)}</td>
+                                          <td>{formatNumber(referencia.necessidade_3m_total)}</td>
+                                          <td>{formatNumber(referencia.necessidade_12m_total)}</td>
+                                          <td>{formatSignedNumber(referencia.gap_necessidade_total)}</td>
+                                          <td>{formatNumber(referencia.skus_com_gap)}</td>
+                                        </tr>
+                                        {referenceOpen
+                                          ? skus.map((sku) => (
+                                              <tr className="media12CurveSkuRow" key={`${referenceKey}|${sku.cd_produto}`}>
+                                                <td>
+                                                  <span>{sku.cd_produto}</span>
+                                                  <strong title={`${sku.referencia} - ${sku.cor || "-"} - ${sku.tamanho || "-"}`}>
+                                                    {sku.referencia} / {sku.cor || "-"} / {sku.tamanho || "-"}
+                                                  </strong>
+                                                </td>
+                                                <td>{formatNumber(sku.estoque_minimo_3m_total)}</td>
+                                                <td>{formatNumber(sku.estoque_minimo_12m_total)}</td>
+                                                <td>{formatSignedNumber(sku.gap_estoque_minimo_total)}</td>
+                                                <td>{formatNumber(sku.necessidade_3m_total)}</td>
+                                                <td>{formatNumber(sku.necessidade_12m_total)}</td>
+                                                <td>{formatSignedNumber(sku.gap_necessidade_total)}</td>
+                                                <td>{formatNumber(sku.skus_com_gap)}</td>
+                                              </tr>
+                                            ))
+                                          : null}
+                                      </Fragment>
+                                    );
+                                  })
+                                : null}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
