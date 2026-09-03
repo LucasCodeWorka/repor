@@ -664,10 +664,10 @@ export default function Media12mImpactoPage() {
                 <strong>{formatNumber(row.estoque_minimo_12m_total)}</strong>
                 <p>12m vs {formatNumber(row.estoque_minimo_3m_total)} no 3m</p>
                 <div className="media12CurveMetrics">
-                  <small><b>{formatSignedNumber(perda3m)}</b> pecas que o 3m nao pediria</small>
+                  <small><b>{formatSignedNumber(perda3m)} pecas</b> em {formatNumber(row.ruptura_silenciosa)} SKUs que o 3m nao pegava</small>
                   <small><b>{formatNumber(recuperavel)}</b> pecas recuperaveis agora ({formatPercent(recuperavelPct)})</small>
                   <small><b>{formatNumber(row.skus_com_gap)}</b> SKUs com necessidade maior no 12m</small>
-                  <small><b>{formatNumber(row.ruptura_silenciosa)}</b> SKUs que o 3m nao pegava</small>
+                  <small><b>{formatSignedNumber(row.gap_estoque_minimo_total)}</b> aumento de estoque minimo</small>
                 </div>
                 <em>{formatNumber(lojas.length)} lojas para validar</em>
                 {isOpen ? (
