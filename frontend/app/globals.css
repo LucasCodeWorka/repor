@@ -1110,6 +1110,20 @@ h2 {
   text-transform: uppercase;
 }
 
+.media12CurveStores th:not(:first-child) {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.media12CurveStores th:not(:first-child):hover {
+  background: #dde6f3;
+}
+
+.media12CurveStores th.sortActive {
+  background: #cbd5e1;
+  color: #1e293b;
+}
+
 .media12CurveStores tbody tr:not(.media12CurveRefRow):not(.media12CurveSkuRow) td {
   background: #eef6ff;
 }

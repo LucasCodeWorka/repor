@@ -404,6 +404,8 @@ export default function Media12mImpactoPage() {
   const [expandedCurveReference, setExpandedCurveReference] = useState<string | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<Media12mImpactoRow | null>(null);
   const [matrixLevel, setMatrixLevel] = useState<MediaMatrixLevel>("sku");
+  const [sortColumn, setSortColumn] = useState<string>("gap_necessidade_total");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   async function loadData() {
     setLoading(true);
@@ -509,6 +511,37 @@ export default function Media12mImpactoPage() {
     data.resumo.estoque_minimo_3m_total > 0
       ? (data.resumo.gap_estoque_minimo_total / data.resumo.estoque_minimo_3m_total) * 100
       : data.resumo.estoque_minimo_12m_total > 0 ? 100 : 0;
+
+  function toggleSort(column: string) {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+  }
+
+  function sortLojas<T extends Record<string, unknown>>(lojas: T[]): T[] {
+    return [...lojas].sort((a, b) => {
+      const aVal = Number(a[sortColumn] || 0);
+      const bVal = Number(b[sortColumn] || 0);
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }
+
+  function SortHeader({ column, children }: { column: string; children: React.ReactNode }) {
+    const isActive = sortColumn === column;
+    return (
+      <th
+        onClick={() => toggleSort(column)}
+        style={{ cursor: "pointer", userSelect: "none" }}
+        className={isActive ? "sortActive" : ""}
+      >
+        {children}
+        {isActive ? (sortDirection === "asc" ? " ▲" : " ▼") : ""}
+      </th>
+    );
+  }
 
   return (
     <PageContainer
@@ -668,18 +701,18 @@ export default function Media12mImpactoPage() {
                       <thead>
                         <tr>
                           <th>Loja</th>
-                          <th>Est. 3m</th>
-                          <th>Est. 12m</th>
-                          <th>Dif. est.</th>
-                          <th>Saldo</th>
-                          <th>Nec. 3m</th>
-                          <th>Nec. 12m</th>
-                          <th>Perda 3m</th>
-                          <th>SKUs afetados</th>
+                          <SortHeader column="estoque_minimo_3m_total">Est. 3m</SortHeader>
+                          <SortHeader column="estoque_minimo_12m_total">Est. 12m</SortHeader>
+                          <SortHeader column="gap_estoque_minimo_total">Dif. est.</SortHeader>
+                          <SortHeader column="saldo_total">Saldo</SortHeader>
+                          <SortHeader column="necessidade_3m_total">Nec. 3m</SortHeader>
+                          <SortHeader column="necessidade_12m_total">Nec. 12m</SortHeader>
+                          <SortHeader column="gap_necessidade_total">Perda 3m</SortHeader>
+                          <SortHeader column="skus_com_gap">SKUs afetados</SortHeader>
                         </tr>
                       </thead>
                       <tbody>
-                        {lojas.map((loja) => {
+                        {sortLojas(lojas).map((loja) => {
                           const storeKey = `${curvaKey}|${loja.cd_loja}`;
                           const referencias = referenciasPorCurvaLoja.get(storeKey) ?? [];
                           const storeOpen = expandedCurveStore === storeKey;
