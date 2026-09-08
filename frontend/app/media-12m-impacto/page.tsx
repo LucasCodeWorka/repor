@@ -397,6 +397,7 @@ export default function Media12mImpactoPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [diagnostico, setDiagnostico] = useState("TODOS");
+  const [referenciaFiltro, setReferenciaFiltro] = useState("TODAS");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedCurva, setExpandedCurva] = useState<string | null>(null);
   const [expandedCurveStore, setExpandedCurveStore] = useState<string | null>(null);
@@ -421,6 +422,12 @@ export default function Media12mImpactoPage() {
     loadData();
   }, []);
 
+  const referenciasUnicas = useMemo(() => {
+    const refs = new Set<string>();
+    data.rows.forEach((row) => refs.add(row.referencia));
+    return Array.from(refs).sort();
+  }, [data.rows]);
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toUpperCase();
     return data.rows.filter((row) => {
@@ -431,38 +438,53 @@ export default function Media12mImpactoPage() {
         String(row.cd_produto).includes(term) ||
         row.descricao_produto.toUpperCase().includes(term);
       const matchDiagnostico = diagnostico === "TODOS" || row.diagnostico === diagnostico;
-      return matchSearch && matchDiagnostico;
+      const matchReferencia = referenciaFiltro === "TODAS" || row.referencia === referenciaFiltro;
+      return matchSearch && matchDiagnostico && matchReferencia;
     });
-  }, [data.rows, diagnostico, search]);
+  }, [data.rows, diagnostico, search, referenciaFiltro]);
 
   const groupedRows = useMemo(() => groupMediaRows(filteredRows), [filteredRows]);
   const lojasPorCurva = useMemo(() => {
     const map = new Map<string, typeof data.por_curva_loja>();
+    // Quando filtrado por referência, mostrar apenas lojas que têm essa referência
+    const lojasComReferencia = referenciaFiltro === "TODAS"
+      ? null
+      : new Set(data.por_curva_loja_referencia.filter((r) => r.referencia === referenciaFiltro).map((r) => `${r.curva_completa}|${r.cd_loja}`));
     for (const row of data.por_curva_loja) {
+      if (lojasComReferencia && !lojasComReferencia.has(`${row.curva_completa}|${row.cd_loja}`)) continue;
       const key = row.curva_completa || "Sem curva";
       map.set(key, [...(map.get(key) ?? []), row]);
     }
     return map;
-  }, [data.por_curva_loja]);
+  }, [data.por_curva_loja, data.por_curva_loja_referencia, referenciaFiltro]);
   const referenciasPorCurvaLoja = useMemo(() => {
     const map = new Map<string, typeof data.por_curva_loja_referencia>();
-    for (const row of data.por_curva_loja_referencia) {
+    const filtered = referenciaFiltro === "TODAS"
+      ? data.por_curva_loja_referencia
+      : data.por_curva_loja_referencia.filter((row) => row.referencia === referenciaFiltro);
+    for (const row of filtered) {
       const key = `${row.curva_completa || "Sem curva"}|${row.cd_loja}`;
       map.set(key, [...(map.get(key) ?? []), row]);
     }
     return map;
-  }, [data.por_curva_loja_referencia]);
+  }, [data.por_curva_loja_referencia, referenciaFiltro]);
   const skusPorCurvaLojaReferencia = useMemo(() => {
     const map = new Map<string, typeof data.por_curva_loja_sku>();
-    for (const row of data.por_curva_loja_sku) {
+    const filtered = referenciaFiltro === "TODAS"
+      ? data.por_curva_loja_sku
+      : data.por_curva_loja_sku.filter((row) => row.referencia === referenciaFiltro);
+    for (const row of filtered) {
       const key = `${row.curva_completa || "Sem curva"}|${row.cd_loja}|${row.referencia}`;
       map.set(key, [...(map.get(key) ?? []), row]);
     }
     return map;
-  }, [data.por_curva_loja_sku]);
+  }, [data.por_curva_loja_sku, referenciaFiltro]);
 
   const biggestMediaJumps = useMemo(() => {
-    return [...data.rows]
+    const baseRows = referenciaFiltro === "TODAS"
+      ? data.rows
+      : data.rows.filter((row) => row.referencia === referenciaFiltro);
+    return [...baseRows]
       .filter((row) => Number(row.media_nova_12m || 0) > Number(row.media_antiga_3m || 0))
       .sort((a, b) => {
         const aJump = Number(a.media_nova_12m || 0) - Number(a.media_antiga_3m || 0);
@@ -471,7 +493,7 @@ export default function Media12mImpactoPage() {
         return Number(b.gap_necessidade || 0) - Number(a.gap_necessidade || 0);
       })
       .slice(0, 8);
-  }, [data.rows]);
+  }, [data.rows, referenciaFiltro]);
 
   const maxMediaJump = Math.max(
     1,
@@ -598,6 +620,18 @@ export default function Media12mImpactoPage() {
             <p>Mostra se o problema esta concentrado nos produtos que deveriam ter maior protecao. Perda 3m = pecas que a regra antiga deixaria de pedir.</p>
           </div>
           <span className="badge">{data.por_curva.length} curvas</span>
+        </div>
+        <div className="media12Filters" style={{ marginBottom: "1rem" }}>
+          <label>
+            <Search size={16} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar loja, referencia ou SKU" />
+          </label>
+          <select value={referenciaFiltro} onChange={(event) => setReferenciaFiltro(event.target.value)}>
+            <option value="TODAS">Todas as referencias</option>
+            {referenciasUnicas.map((ref) => (
+              <option key={ref} value={ref}>{ref}</option>
+            ))}
+          </select>
         </div>
         <div className="media12CurveGrid">
           {data.por_curva.map((row) => {
