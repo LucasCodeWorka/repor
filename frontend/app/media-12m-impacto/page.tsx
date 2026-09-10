@@ -448,17 +448,24 @@ export default function Media12mImpactoPage() {
   const groupedRows = useMemo(() => groupMediaRows(filteredRows), [filteredRows]);
   const lojasPorCurva = useMemo(() => {
     const map = new Map<string, typeof data.por_curva_loja>();
-    // Quando filtrado por referência, mostrar apenas lojas que têm essa referência
-    const lojasComReferencia = referenciaFiltro === "TODAS"
+    const term = search.trim().toUpperCase();
+    // Quando filtrado por referência ou search, mostrar apenas lojas que têm essa referência
+    const lojasComFiltro = (referenciaFiltro === "TODAS" && !term)
       ? null
-      : new Set(data.por_curva_loja_referencia.filter((r) => r.referencia === referenciaFiltro).map((r) => `${r.curva_completa}|${r.cd_loja}`));
+      : new Set(data.por_curva_loja_referencia
+          .filter((r) => {
+            const matchRef = referenciaFiltro === "TODAS" || r.referencia === referenciaFiltro;
+            const matchSearch = !term || r.referencia.toUpperCase().includes(term) || r.nome_loja.toUpperCase().includes(term);
+            return matchRef && matchSearch;
+          })
+          .map((r) => `${r.curva_completa}|${r.cd_loja}`));
     for (const row of data.por_curva_loja) {
-      if (lojasComReferencia && !lojasComReferencia.has(`${row.curva_completa}|${row.cd_loja}`)) continue;
+      if (lojasComFiltro && !lojasComFiltro.has(`${row.curva_completa}|${row.cd_loja}`)) continue;
       const key = row.curva_completa || "Sem curva";
       map.set(key, [...(map.get(key) ?? []), row]);
     }
     return map;
-  }, [data.por_curva_loja, data.por_curva_loja_referencia, referenciaFiltro]);
+  }, [data.por_curva_loja, data.por_curva_loja_referencia, referenciaFiltro, search]);
   const referenciasPorCurvaLoja = useMemo(() => {
     const map = new Map<string, typeof data.por_curva_loja_referencia>();
     const filtered = referenciaFiltro === "TODAS"
@@ -499,9 +506,14 @@ export default function Media12mImpactoPage() {
     }>();
 
     // Usa por_curva_loja_referencia para ter todas as curvas e poder filtrar
-    const sourceData = referenciaFiltro === "TODAS"
-      ? data.por_curva_loja_referencia
-      : data.por_curva_loja_referencia.filter((r) => r.referencia === referenciaFiltro);
+    const term = search.trim().toUpperCase();
+    const sourceData = data.por_curva_loja_referencia.filter((r) => {
+      const matchReferencia = referenciaFiltro === "TODAS" || r.referencia === referenciaFiltro;
+      const matchSearch = !term ||
+        r.referencia.toUpperCase().includes(term) ||
+        r.nome_loja.toUpperCase().includes(term);
+      return matchReferencia && matchSearch;
+    });
 
     // Identifica as ultimas 20 refs da CURVA B (menor media) para virar CURVA C
     const curvaBRefs = sourceData
@@ -561,7 +573,7 @@ export default function Media12mImpactoPage() {
       const order = ["CURVA AA", "CURVA A", "CURVA B", "CURVA C", "SEM CURVA"];
       return order.indexOf(a.curva_completa) - order.indexOf(b.curva_completa);
     });
-  }, [data.por_curva_loja_referencia, referenciaFiltro]);
+  }, [data.por_curva_loja_referencia, referenciaFiltro, search]);
 
   const biggestMediaJumps = useMemo(() => {
     const baseRows = referenciaFiltro === "TODAS"
