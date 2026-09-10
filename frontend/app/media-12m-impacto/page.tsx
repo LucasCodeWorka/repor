@@ -482,6 +482,64 @@ export default function Media12mImpactoPage() {
     return map;
   }, [data.por_curva_loja_sku, referenciaFiltro]);
 
+  // Curvas filtradas - recalcula totais baseado nos dados de por_curva_loja
+  const curvasFiltradas = useMemo(() => {
+    const curvaMap = new Map<string, {
+      curva_completa: string;
+      estoque_minimo_3m_total: number;
+      estoque_minimo_12m_total: number;
+      gap_estoque_minimo_total: number;
+      necessidade_3m_total: number;
+      necessidade_12m_total: number;
+      gap_necessidade_total: number;
+      gap_silencioso_total: number;
+      ruptura_silenciosa: number;
+      skus_com_gap: number;
+      qtd_recuperavel: number;
+    }>();
+
+    // Usa por_curva_loja_referencia para ter todas as curvas e poder filtrar
+    const sourceData = referenciaFiltro === "TODAS"
+      ? data.por_curva_loja_referencia
+      : data.por_curva_loja_referencia.filter((r) => r.referencia === referenciaFiltro);
+
+    for (const ref of sourceData) {
+      const curvaKey = ref.curva_completa || "Sem curva";
+      const existing = curvaMap.get(curvaKey);
+      if (existing) {
+        existing.estoque_minimo_3m_total += Number(ref.estoque_minimo_3m_total || 0);
+        existing.estoque_minimo_12m_total += Number(ref.estoque_minimo_12m_total || 0);
+        existing.gap_estoque_minimo_total += Number(ref.gap_estoque_minimo_total || 0);
+        existing.necessidade_3m_total += Number(ref.necessidade_3m_total || 0);
+        existing.necessidade_12m_total += Number(ref.necessidade_12m_total || 0);
+        existing.gap_necessidade_total += Number(ref.gap_necessidade_total || 0);
+        existing.gap_silencioso_total += Number(ref.gap_silencioso_total || 0);
+        existing.ruptura_silenciosa += Number(ref.ruptura_silenciosa || 0);
+        existing.skus_com_gap += Number(ref.skus_com_gap || 0);
+        existing.qtd_recuperavel += Number(ref.qtd_recuperavel || 0);
+      } else {
+        curvaMap.set(curvaKey, {
+          curva_completa: curvaKey,
+          estoque_minimo_3m_total: Number(ref.estoque_minimo_3m_total || 0),
+          estoque_minimo_12m_total: Number(ref.estoque_minimo_12m_total || 0),
+          gap_estoque_minimo_total: Number(ref.gap_estoque_minimo_total || 0),
+          necessidade_3m_total: Number(ref.necessidade_3m_total || 0),
+          necessidade_12m_total: Number(ref.necessidade_12m_total || 0),
+          gap_necessidade_total: Number(ref.gap_necessidade_total || 0),
+          gap_silencioso_total: Number(ref.gap_silencioso_total || 0),
+          ruptura_silenciosa: Number(ref.ruptura_silenciosa || 0),
+          skus_com_gap: Number(ref.skus_com_gap || 0),
+          qtd_recuperavel: Number(ref.qtd_recuperavel || 0),
+        });
+      }
+    }
+
+    return Array.from(curvaMap.values()).sort((a, b) => {
+      const order = ["CURVA AA", "CURVA A", "CURVA B", "CURVA C", "SEM CURVA"];
+      return order.indexOf(a.curva_completa) - order.indexOf(b.curva_completa);
+    });
+  }, [data.por_curva_loja_referencia, referenciaFiltro]);
+
   const biggestMediaJumps = useMemo(() => {
     const baseRows = referenciaFiltro === "TODAS"
       ? data.rows
@@ -652,7 +710,7 @@ export default function Media12mImpactoPage() {
             <h2>Diagnostico por Curva</h2>
             <p>Mostra se o problema esta concentrado nos produtos que deveriam ter maior protecao. Perda 3m = pecas que a regra antiga deixaria de pedir.</p>
           </div>
-          <span className="badge">{data.por_curva.length} curvas</span>
+          <span className="badge">{curvasFiltradas.length} curvas</span>
         </div>
         <div className="media12Filters" style={{ marginBottom: "1rem" }}>
           <label>
@@ -667,7 +725,7 @@ export default function Media12mImpactoPage() {
           </select>
         </div>
         <div className="media12CurveGrid">
-          {data.por_curva.map((row) => {
+          {curvasFiltradas.map((row) => {
             const perda3m = Number(row.gap_necessidade_total || 0);
             const perdaSilenciosa = Number(row.gap_silencioso_total || 0);
             const recuperavel = Number(row.qtd_recuperavel || 0);
