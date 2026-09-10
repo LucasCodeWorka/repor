@@ -503,8 +503,31 @@ export default function Media12mImpactoPage() {
       ? data.por_curva_loja_referencia
       : data.por_curva_loja_referencia.filter((r) => r.referencia === referenciaFiltro);
 
+    // Identifica as ultimas 20 refs da CURVA B (menor media) para virar CURVA C
+    const curvaBRefs = sourceData
+      .filter((r) => r.curva_completa === "CURVA B")
+      .reduce((acc, r) => {
+        if (!acc.has(r.referencia)) {
+          acc.set(r.referencia, Number(r.media_antiga_total || 0));
+        } else {
+          acc.set(r.referencia, acc.get(r.referencia)! + Number(r.media_antiga_total || 0));
+        }
+        return acc;
+      }, new Map<string, number>());
+
+    const ultimas20CurvaB = [...curvaBRefs.entries()]
+      .sort((a, b) => a[1] - b[1]) // menor media primeiro
+      .slice(0, 20)
+      .map(([ref]) => ref);
+
+    const refsCurvaC = new Set(ultimas20CurvaB);
+
     for (const ref of sourceData) {
-      const curvaKey = ref.curva_completa || "Sem curva";
+      // Reclassifica as ultimas 20 refs da CURVA B como CURVA C
+      let curvaKey = ref.curva_completa || "Sem curva";
+      if (curvaKey === "CURVA B" && refsCurvaC.has(ref.referencia)) {
+        curvaKey = "CURVA C";
+      }
       const existing = curvaMap.get(curvaKey);
       if (existing) {
         existing.estoque_minimo_3m_total += Number(ref.estoque_minimo_3m_total || 0);
