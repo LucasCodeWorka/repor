@@ -45,7 +45,7 @@ VENDAS_QTD_SQL = """
       AND i.dt_transacao >= %(corte)s::date
       AND i.cd_compvend <> 1
       AND t.tp_situacao <> 6
-      AND t.tp_modalidade::text = ANY (ARRAY['3','4'])
+      AND t.tp_modalidade::text = ANY (ARRAY['3','4','8'])
     GROUP BY t.cd_empresa, i.dt_transacao, i.cd_produto
 
     UNION ALL
