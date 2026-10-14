@@ -36,12 +36,16 @@ VENDAS_QTD_SQL = """
         i.dt_transacao AS data,
         i.cd_produto AS idproduto,
         sum(i.qt_solicitada *
-            CASE WHEN t.tp_modalidade::text = '3' THEN -1 ELSE 1 END::double precision
+            CASE
+                WHEN t.tp_operacao = 'E' AND t.tp_modalidade::text = '3' THEN -1
+                WHEN t.tp_operacao = 'S' THEN 1
+                ELSE 0
+            END::double precision
         ) AS qt_liquida
     FROM vr_tra_transacao t
     JOIN vr_tra_transitem i ON t.nr_transacao = i.nr_transacao AND t.cd_empresa = i.cd_empresa
     WHERE t.cd_empresa <> 1
-      AND t.cd_operacao <> ALL (ARRAY[140,76,25,26,27,273,44,240,241,242,243,244,245,239,238,237,236]::bigint[])
+      AND t.cd_operacao <> ALL (ARRAY[140,76,25,26,27,273,44,242,244,245,239,237,236]::bigint[])
       AND i.dt_transacao >= %(corte)s::date
       AND i.cd_compvend <> 1
       AND t.tp_situacao <> 6
