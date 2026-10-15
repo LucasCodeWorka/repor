@@ -2,11 +2,12 @@
 echo ============================================
 echo INSTALANDO TAREFAS AGENDADAS - Refresh CMV
 echo mv_cmv_loja_v2 -^> mv_cmv_loja -^> mv_cmv_fab
-echo 06:00 e 17:00
+echo 06:00, 11:10 e 17:00
 echo ============================================
 
 REM Remove tarefas antigas (nomes antigos e os separados), se existirem
 schtasks /delete /tn "Refresh_mv_cmv_06h" /f >nul 2>&1
+schtasks /delete /tn "Refresh_mv_cmv_11h10" /f >nul 2>&1
 schtasks /delete /tn "Refresh_mv_cmv_17h" /f >nul 2>&1
 schtasks /delete /tn "Refresh_mv_cmv_loja_06h" /f >nul 2>&1
 schtasks /delete /tn "Refresh_mv_cmv_loja_17h" /f >nul 2>&1
@@ -21,6 +22,13 @@ schtasks /create ^
     /f
 
 schtasks /create ^
+    /tn "Refresh_mv_cmv_11h10" ^
+    /tr "\"c:\Users\ce_lu\OneDrive\Documentos\geo2\refresh_cmv.bat\"" ^
+    /sc daily ^
+    /st 11:10 ^
+    /f
+
+schtasks /create ^
     /tn "Refresh_mv_cmv_17h" ^
     /tr "\"c:\Users\ce_lu\OneDrive\Documentos\geo2\refresh_cmv.bat\"" ^
     /sc daily ^
@@ -32,7 +40,7 @@ echo ============================================
 echo TAREFAS INSTALADAS COM SUCESSO!
 echo ============================================
 echo.
-echo Rodam todo dia as 06:00 e 17:00 (precisa estar logado), na ordem:
+echo Rodam todo dia as 06:00, 11:10 e 17:00 (precisa estar logado), na ordem:
 echo   1. mv_cmv_loja_v2, confere se populou, depois mv_cmv_loja
 echo   2. mv_cmv_fab (incremental, janela de 10 dias)
 echo.
